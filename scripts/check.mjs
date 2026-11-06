@@ -4,7 +4,7 @@ import {spawnSync} from 'node:child_process';
 const root=resolve(new URL('..',import.meta.url).pathname.replace(/^\/([A-Za-z]:)/,'$1'));
 let files=0;
 function walk(dir){for(const entry of readdirSync(dir,{withFileTypes:true})){
- if(['.git','artifacts','node_modules'].includes(entry.name))continue;
+ if(['.git','artifacts','node_modules','.wrangler','.vercel','dist'].includes(entry.name))continue;
  const path=join(dir,entry.name);
  if(entry.isDirectory())walk(path);
  else if(entry.name.endsWith('.mjs')){

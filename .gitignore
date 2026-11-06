@@ -7,3 +7,8 @@ artifacts/
 __pycache__/
 .DS_Store
 Thumbs.db
+.wrangler/
+dist/
+.dev.vars
+.dev.vars.*
+.vercel/

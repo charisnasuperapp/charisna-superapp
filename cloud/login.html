@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="id">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>Masuk Pemilik — CHARISNA</title><link rel="stylesheet" href="/styles.css"><script type="module" src="/login.mjs"></script></head>
+<body class="login-page">
+<a class="skip" href="#main">Lewati ke halaman masuk</a>
+<header class="topbar"><a class="brand" href="/login" aria-label="CHARISNA SuperApp, masuk pemilik"><span class="brand-mark" aria-hidden="true">C</span><span>CHARISNA <small>SUPERAPP</small></span></a><span class="demo-label">Data contoh</span></header>
+<main id="main" class="login-main">
+<section class="login-intro" aria-labelledby="intro-title"><p class="eyebrow">RUANG PEMILIK · DATA SINTETIS</p><h1 id="intro-title">Satu ruang.<br>Fokus yang tepat<span class="title-dot">.</span></h1><p class="subtitle">Masuk untuk melihat ringkasan usaha contoh dalam ruang khusus pemilik.</p><div class="login-context"><span class="note-icon" aria-hidden="true">i</span><p>Tidak terhubung ke usaha atau rekening nyata. Seluruh data di dalam aplikasi bersifat sintetis.</p></div><p class="login-session">Sesi berlaku 15 menit tanpa perpanjangan otomatis. Setelah sesi berakhir, masuk kembali dengan kode baru.</p></section>
+<section class="login-card" aria-labelledby="login-title"><p class="eyebrow">AKSES KHUSUS PEMILIK</p><h2 id="login-title">Masuk dengan kode</h2><p class="login-description">Minta kode sekali pakai ke email pemilik yang telah terdaftar. Tidak perlu kata sandi.</p>
+<form id="send-code-form" action="/auth/send-code" method="post"><button id="send-code" class="button secondary" type="submit" disabled>Kirim kode masuk</button><p id="send-cooldown" class="field-hint">Kode hanya dikirim ke email pemilik terdaftar.</p></form>
+<div class="login-divider" aria-hidden="true"></div>
+<form id="verify-code-form" action="/auth/verify" method="post"><label for="login-code">Kode sekali pakai</label><p id="code-hint" class="field-hint">Masukkan 6–10 digit dari email. Jangan bagikan kode ini.</p><input id="login-code" type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,10}" minlength="6" maxlength="10" required spellcheck="false" autocapitalize="off" aria-describedby="code-hint login-error" disabled><button id="verify-code" class="button primary" type="submit" disabled>Masuk ke ringkasan</button></form>
+<p id="login-status" class="login-status" role="status" aria-live="polite" aria-atomic="true"></p><p id="login-error" class="login-error" role="alert" aria-atomic="true"></p>
+<noscript><p>Aktifkan JavaScript untuk masuk dengan aman. Kode tidak dikirim lewat alamat halaman.</p></noscript>
+<p class="login-privacy">Akses diverifikasi oleh server. Penutup saldo di dalam aplikasi hanya kenyamanan visual, bukan pengganti autentikasi.</p>
+</section>
+<footer><span>CHARISNA SuperApp</span><span>Demo cloud · data sintetis · bukan data produksi</span></footer>
+</main></body></html>

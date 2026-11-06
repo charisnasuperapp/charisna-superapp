@@ -11,9 +11,34 @@ const time=value=>value?new Intl.DateTimeFormat('id-ID',{timeZone:'Asia/Jakarta'
 const badge=m=>`<span class="badge ${escape(m.quality_status)}">${escape(statusLabel(m))}</span>`;
 const coverage=m=>m.coverage?`${m.coverage.matched} dari ${m.coverage.total} ${m.coverage.unit}`:'Cakupan belum tersedia';
 const button=(m,text)=>`<button class="text-button" type="button" data-detail="${escape(m.business_id)}" aria-haspopup="dialog">${text}<span aria-hidden="true">›</span></button>`;
-function mount(){
+export function mount({document=globalThis.document,window=globalThis.window,fetch=globalThis.fetch}={}){
  const $=selector=>document.querySelector(selector);
- const dialog=$('#detail-dialog');let overview;let trigger;let balanceVisible=false;let revealPending=false;
+ const dialog=$('#detail-dialog');let overview;let trigger;let balanceVisible=false;let revealPending=false;let leaving=false;let logoutPending=false;let epoch=0;
+ function clearBalance(){
+  epoch++;balanceVisible=false;
+  $('#balance').textContent='Saldo contoh disembunyikan';$('#balance').classList.remove('visible');
+  $('#toggle-balance').textContent='Tampilkan saldo contoh';$('#toggle-balance').setAttribute('aria-expanded','false');
+ }
+ function clearDashboard(){
+  clearBalance();$('#dashboard').hidden=true;$('#attention-items').innerHTML='';$('#business-items').innerHTML='';$('#dialog-content').innerHTML='';overview=undefined;
+  if(dialog.open)dialog.close();
+ }
+ function unauthorized(){leaving=true;clearDashboard();window.location.replace('/login');}
+ window.addEventListener('pagehide',()=>{leaving=true;clearDashboard();});
+ window.addEventListener('pageshow',event=>{if(event.persisted){clearDashboard();window.location.reload();}});
+ $('#logout-button').disabled=false;
+ $('#logout-form').addEventListener('submit',async event=>{
+  event.preventDefault();if(logoutPending)return;
+  logoutPending=true;clearBalance();$('#toggle-balance').disabled=true;$('#logout-button').disabled=true;$('#logout-form').setAttribute('aria-busy','true');
+  $('#logout-status').textContent='Mengakhiri sesi…';
+  try {
+   const response=await fetch('/auth/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',cache:'no-store'});
+   if(response.status===401){unauthorized();return;}
+   if(!response.ok)throw Error('logout');
+   unauthorized();
+  }catch{$('#logout-status').textContent='Belum dapat keluar. Periksa koneksi, lalu coba lagi.';}
+  finally{logoutPending=false;$('#logout-button').disabled=leaving;$('#toggle-balance').disabled=leaving;$('#logout-form').setAttribute('aria-busy','false');}
+ });
  function detail(m,opener){
   trigger=opener;
   const isPos=m.business_id==='bumi-makmur';
@@ -43,16 +68,16 @@ function mount(){
  });
  dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}});
  $('#toggle-balance').addEventListener('click',async()=>{
-  if(revealPending)return;
-  if(balanceVisible){balanceVisible=false;$('#balance').textContent='Saldo contoh disembunyikan';$('#balance').classList.remove('visible');$('#toggle-balance').textContent='Tampilkan saldo contoh';$('#toggle-balance').setAttribute('aria-expanded','false');return;}
-  revealPending=true;$('#toggle-balance').disabled=true;
-  try{const response=await fetch('/demo/personal.json',{cache:'no-store'});if(!response.ok)throw Error('load');const data=await response.json();$('#balance').textContent=formatRupiah(data.personal.amount_minor);$('#balance').classList.add('visible');balanceVisible=true;$('#toggle-balance').textContent='Sembunyikan saldo contoh';$('#toggle-balance').setAttribute('aria-expanded','true');}
-  catch{$('#balance').textContent='Saldo contoh gagal dimuat. Coba lagi.';}
-  finally{revealPending=false;$('#toggle-balance').disabled=false;}
+  if(revealPending||leaving||logoutPending)return;
+  if(balanceVisible){clearBalance();return;}
+  const requestEpoch=epoch;revealPending=true;$('#toggle-balance').disabled=true;
+  try{const response=await fetch('/demo/personal.json',{cache:'no-store'});if(response.status===401){unauthorized();return;}if(!response.ok)throw Error('load');const data=await response.json();if(leaving||logoutPending||epoch!==requestEpoch)return;$('#balance').textContent=formatRupiah(data.personal.amount_minor);$('#balance').classList.add('visible');balanceVisible=true;$('#toggle-balance').textContent='Sembunyikan saldo contoh';$('#toggle-balance').setAttribute('aria-expanded','true');}
+  catch{if(!leaving&&!logoutPending&&epoch===requestEpoch)$('#balance').textContent='Saldo contoh gagal dimuat. Coba lagi.';}
+  finally{revealPending=false;$('#toggle-balance').disabled=leaving||logoutPending;}
  });
  async function load(){
   try{
-   const response=await fetch('/demo/overview.json',{cache:'no-store'});if(!response.ok)throw Error('load');overview=await response.json();
+   const response=await fetch('/demo/overview.json',{cache:'no-store'});if(response.status===401){unauthorized();return;}if(!response.ok)throw Error('load');const data=await response.json();if(leaving)return;overview=data;
    if(!Array.isArray(overview.businesses))throw Error('schema');
    $('#period').textContent=overview.period_label;
    const attention=overview.businesses.filter(m=>['mismatch','incomplete','stale','provisional'].includes(m.quality_status)).sort(attentionOrder);
@@ -71,8 +96,8 @@ function mount(){
    }).join('');
    document.querySelectorAll('[data-detail]').forEach(el=>el.addEventListener('click',()=>detail(overview.businesses.find(m=>m.business_id===el.dataset.detail),el)));
    $('#load-status').hidden=true;$('#dashboard').hidden=false;
-  }catch{$('#load-status').textContent='Ringkasan gagal dimuat. Ini masalah pemuatan halaman, bukan status data usaha. Muat ulang setelah memeriksa server lokal.';}
+  }catch{if(!leaving)$('#load-status').textContent='Ringkasan gagal dimuat. Ini masalah pemuatan halaman, bukan status data usaha. Periksa koneksi, lalu muat ulang.';}
  }
- load();
+ return {ready:load()};
 }
 if(typeof document!=='undefined')mount();
