@@ -16,7 +16,7 @@ const headers={
 assets.set('/login',['./login.html','text/html; charset=utf-8']);
 assets.set('/login.mjs',['./login.mjs','text/javascript; charset=utf-8']);
 const publicPaths=new Set(['/login','/login.mjs','/styles.css']);
-const authPaths=new Set(['/auth/send-code','/auth/verify','/auth/logout']);
+const authPaths=new Set(['/auth/send-link','/auth/logout']);
 
 async function readJson(req){
  if(!/^application\/json(?:\s*;|$)/i.test(req.headers.get('content-type')??''))return {error:415};
@@ -42,28 +42,35 @@ export function createCloudHandler({env=process.env,auth,assetLoader=async()=>{t
    const url=new URL(req.url);const path=url.pathname;
    if(!siteOrigin)return respond(503,{error:'Akses pemilik belum dikonfigurasi.'});
    if(url.origin!==siteOrigin)return respond(403,{error:'Asal permintaan ditolak.'});
-   if(authPaths.has(path)){
-    if(req.method!=='POST')return respond(405,{error:'Metode tidak diizinkan.'},{Allow:'POST'});
-    if(req.headers.get('origin')!==siteOrigin||req.headers.get('sec-fetch-site')==='cross-site')return respond(403,{error:'Asal permintaan ditolak.'});
-    const parsed=await readJson(req);if(parsed.error)return respond(parsed.error,{error:'Permintaan tidak valid.'});
-    if(path==='/auth/logout'){
-     const result=await auth.logout({headers:Object.fromEntries(req.headers)});
+    if(path==='/auth/callback'){
+     if(req.method!=='GET')return respond(405,{error:'Metode tidak diizinkan.'},{Allow:'GET'});
+     const fail=()=>new Response(null,{status:303,headers:{...headers,Location:'/login?error=1'}});
+     if(!auth?.configured)return fail();
+     const code=url.searchParams.get('code');
+     if([...url.searchParams.keys()].some(k=>k!=='code')||url.searchParams.getAll('code').length!==1||!code)return fail();
+     if(now()>=verifyWindow){verifyWindow=now()+900000;verifyAttempts=0;}
+     if(verifyAttempts>=9)return fail();
+     const result=await auth.exchangeCode({headers:Object.fromEntries(req.headers)},code);
+     if(result.status!==200){if(!result.local)verifyAttempts++;return fail();}
+     // Strict session cookie: land on a same-site page first, because a redirect chain that began in the mail client is cross-site.
+     const res=new Response('<!doctype html><html lang="id"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=/"><title>Masuk</title></head><body><p>Masuk berhasil. <a href="/">Lanjut</a></p></body></html>',{status:200,headers:{...headers,'Content-Type':'text/html; charset=utf-8'}});
+     res.headers.append('Set-Cookie',result.cookie);res.headers.append('Set-Cookie',auth.clearPkceCookie());
+     return res;
+    }
+    if(authPaths.has(path)){
+     if(req.method!=='POST')return respond(405,{error:'Metode tidak diizinkan.'},{Allow:'POST'});
+     if(req.headers.get('origin')!==siteOrigin||req.headers.get('sec-fetch-site')==='cross-site')return respond(403,{error:'Asal permintaan ditolak.'});
+     const parsed=await readJson(req);if(parsed.error)return respond(parsed.error,{error:'Permintaan tidak valid.'});
+     if(path==='/auth/logout'){
+      const result=await auth.logout({headers:Object.fromEntries(req.headers)});
+      return respond(result.status,result.body,result.cookie?{'Set-Cookie':result.cookie}:{});
+     }
+     if(!auth?.configured)return respond(503,{error:'Akses pemilik belum dikonfigurasi.'});
+     if(Object.keys(parsed.value).length)return respond(400,{error:'Permintaan tidak valid.'});
+     if(now()<sendAfter)return respond(429,{error:'Tunggu sebelum meminta tautan lagi.'},{'Retry-After':String(Math.ceil((sendAfter-now())/1000))});
+     sendAfter=now()+60000;const result=await auth.sendLink();
      return respond(result.status,result.body,result.cookie?{'Set-Cookie':result.cookie}:{});
     }
-    if(!auth?.configured)return respond(503,{error:'Akses pemilik belum dikonfigurasi.'});
-    let result;
-    if(path==='/auth/send-code'){
-     if(Object.keys(parsed.value).length)return respond(400,{error:'Permintaan tidak valid.'});
-     if(now()<sendAfter)return respond(429,{error:'Tunggu sebelum meminta kode lagi.'},{'Retry-After':String(Math.ceil((sendAfter-now())/1000))});
-     sendAfter=now()+60000;result=await auth.sendCode();
-    }else{
-     if(Object.keys(parsed.value).length!==1||typeof parsed.value.code!=='string'||!/^\d{6,10}$/.test(parsed.value.code))return respond(400,{error:'Kode tidak valid.'});
-     if(now()>=verifyWindow){verifyWindow=now()+900000;verifyAttempts=0;}
-     if(verifyAttempts>=9)return respond(429,{error:'Terlalu banyak percobaan.'},{'Retry-After':String(Math.ceil((verifyWindow-now())/1000))});
-     verifyAttempts++;result=await auth.verifyCode(parsed.value.code);
-    }
-    return respond(result.status,result.body,result.cookie?{'Set-Cookie':result.cookie}:{});
-   }
    if(!['GET','HEAD'].includes(req.method))return respond(405,{error:'Metode tidak diizinkan.'},{Allow:'GET, HEAD'});
    if(!publicPaths.has(path)){
     if(!auth?.configured)return respond(503,{error:'Akses pemilik belum dikonfigurasi.'});
@@ -79,7 +86,7 @@ export function createCloudHandler({env=process.env,auth,assetLoader=async()=>{t
    else if(assets.has(path)){const [file,type]=assets.get(path);response=new Response(await assetLoader(file),{headers:{...headers,'Content-Type':type}});}
    else response=respond(404,{error:'Tidak ditemukan.'});
    return response;
-  }catch{return respond(503,{error:'Layanan sementara tidak tersedia.'});}
+  }catch{return new URL(req.url).pathname==='/auth/callback'&&req.method==='GET'?new Response(null,{status:303,headers:{...headers,Location:'/login?error=1'}}):respond(503,{error:'Layanan sementara tidak tersedia.'});}
  }
  return async function handle(req){
   const response=await respondTo(req);

@@ -8,46 +8,33 @@ async function loginModule() {
  return import(loginURL);
 }
 
-test('send code posts an empty same-origin body, blocks duplicate requests and waits 60 seconds', async()=>{
+test('send link posts an empty same-origin body, blocks duplicate requests and waits 60 seconds', async()=>{
  const {createLoginController}=await loginModule();
  let now=1000;let finish;const requests=[];
- const controller=createLoginController({now:()=>now,fetch:async(url,options)=>{requests.push({url,options});return new Promise(resolve=>finish=resolve);},replace:()=>assert.fail('send must not navigate')});
- const pending=controller.sendCode();
+ const controller=createLoginController({now:()=>now,fetch:async(url,options)=>{requests.push({url,options});return new Promise(resolve=>finish=resolve);}});
+ const pending=controller.sendLink();
  assert.equal(controller.state.busy,true);
- await controller.sendCode();
+ await controller.sendLink();
  assert.equal(requests.length,1);
- assert.deepEqual(requests[0],{url:'/auth/send-code',options:{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',cache:'no-store'}});
+ assert.deepEqual(requests[0],{url:'/auth/send-link',options:{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',cache:'no-store'}});
  finish({ok:true});await pending;
  assert.equal(controller.state.busy,false);
  assert.equal(controller.state.cooldown,60);
  assert.match(controller.state.message,/Jika permintaan dapat diproses/);
- await controller.sendCode();assert.equal(requests.length,1);
+ await controller.sendLink();assert.equal(requests.length,1);
  now+=59999;assert.equal(controller.state.cooldown,1);
  now+=1;assert.equal(controller.state.cooldown,0);
 });
 
-test('verification accepts only 6–10 numeric digits, sends code only in POST body and replaces history',async()=>{
- const {createLoginController}=await loginModule();const requests=[];const navigation=[];let finish;
- const controller=createLoginController({fetch:async(url,options)=>{requests.push({url,options});return new Promise(resolve=>finish=resolve);},replace:url=>navigation.push(url)});
- for(const code of ['', '12345', '12345678901', '123a56', ' 123456', '123456\n', '123456\r', '123456\u2028']){
-  await controller.verifyCode(code);assert.equal(requests.length,0);assert.match(controller.state.error,/6–10 digit/);
- }
- const pending=controller.verifyCode('012345');
- assert.equal(controller.state.error,'');assert.equal(controller.state.busy,true);
- await controller.verifyCode('987654');await controller.sendCode();assert.equal(requests.length,1);
- assert.deepEqual(requests[0],{url:'/auth/verify',options:{method:'POST',headers:{'Content-Type':'application/json'},body:'{"code":"012345"}',cache:'no-store'}});
- finish({ok:true});await pending;assert.deepEqual(navigation,['/']);
+test('HTTP and network failures never expose provider details and retry clears errors',async()=>{
+ const {createLoginController}=await loginModule();let now=0;let fail=true;
+ const controller=createLoginController({now:()=>now,fetch:async()=>{if(fail)return {ok:false,status:429,json:()=>assert.fail('never read provider message')};return {ok:true};}});
+ await controller.sendLink();assert.match(controller.state.error,/belum dapat diproses/);assert.equal(controller.state.cooldown,60);
+ now=60000;fail=false;await controller.sendLink();assert.equal(controller.state.error,'');
+ const offline=createLoginController({fetch:async()=>{throw Error('private upstream details');}});
+ await offline.sendLink();assert.match(offline.state.error,/belum dapat diproses/);assert.equal(offline.state.busy,false);
 });
 
-test('HTTP and network failures never expose provider details and subsequent attempts clear errors',async()=>{
- const {createLoginController}=await loginModule();let now=0;let fail=true;
- const controller=createLoginController({now:()=>now,fetch:async()=>{if(fail)return {ok:false,status:429,json:()=>assert.fail('never read provider message')};return {ok:true};},replace:()=>{}});
- await controller.sendCode();assert.match(controller.state.error,/belum dapat diproses/);assert.equal(controller.state.cooldown,60);
- await controller.verifyCode('123456');assert.match(controller.state.error,/Kode belum dapat diverifikasi/);
- now=60000;fail=false;await controller.sendCode();assert.equal(controller.state.error,'');
- const offline=createLoginController({fetch:async()=>{throw Error('private upstream details');}});
- await offline.verifyCode('1234567890');assert.match(offline.state.error,/Kode belum dapat diverifikasi/);assert.equal(offline.state.busy,false);
-});
 
 function fakePage(){
  const nodes=new Map();const events=new Map();
@@ -56,30 +43,32 @@ function fakePage(){
   return nodes.get(selector);
  };
  const navigations=[];let reloads=0;
- const window={location:{replace:url=>navigations.push(url),reload:()=>reloads++},addEventListener:(key,handler)=>events.set(key,handler),setInterval:handler=>{events.set('tick',handler);return 1;},clearInterval:()=>{}};
+ const window={location:{search:"",replace:url=>navigations.push(url),reload:()=>reloads++},addEventListener:(key,handler)=>events.set(key,handler),setInterval:handler=>{events.set('tick',handler);return 1;},clearInterval:()=>{}};
  const document={querySelector:node,querySelectorAll:()=>[]};
  return {node,document,window,events,navigations,get reloads(){return reloads;},submit:selector=>node(selector).listeners.submit({preventDefault(){}})};
 }
 
-test('login form intercepts submission, paints busy/error state and clears code on navigation',async()=>{
- const {mountLogin}=await loginModule();const page=fakePage();let finish;let now=0;
+test('login form intercepts submission, paints busy state and reloads persisted pages',async()=>{
+ const {mountLogin}=await loginModule();const page=fakePage();page.window.location.search='';let finish;let now=0;
  mountLogin({document:page.document,window:page.window,now:()=>now,fetch:async()=>new Promise(resolve=>finish=resolve)});
- assert.equal(page.node('#send-code').disabled,false);assert.equal(page.node('#login-code').disabled,false);
- const send=page.submit('#send-code-form');assert.equal(page.node('#send-code').disabled,true);assert.equal(page.node('#verify-code').disabled,true);
- finish({ok:true});await send;assert.equal(page.node('#verify-code').disabled,false);assert.match(page.node('#send-cooldown').textContent,/60 detik/);
- now=60000;page.events.get('tick')();assert.equal(page.node('#send-code').disabled,false);
- page.node('#login-code').value='123456';const verify=page.submit('#verify-code-form');
- assert.equal(page.node('#login-code').value,'');finish({ok:false});await verify;
- assert.match(page.node('#login-error').textContent,/Kode belum dapat diverifikasi/);assert.equal(page.node('#login-code').attributes['aria-invalid'],'true');assert.equal(page.node('#login-code').focused,true);
- page.node('#login-code').value='987654';page.events.get('pagehide')();assert.equal(page.node('#login-code').value,'');
+ assert.equal(page.node('#send-link').disabled,false);
+ const send=page.submit('#send-link-form');assert.equal(page.node('#send-link').disabled,true);
+ finish({ok:true});await send;assert.match(page.node('#send-cooldown').textContent,/60 detik/);
+ now=60000;page.events.get('tick')();assert.equal(page.node('#send-link').disabled,false);
  page.events.get('pageshow')({persisted:true});assert.equal(page.reloads,1);
 });
 
+test('callback failure redirect shows a generic error',async()=>{
+ const {mountLogin}=await loginModule();const page=fakePage();page.window.location.search='?error=1';
+ mountLogin({document:page.document,window:page.window,fetch:async()=>({ok:true})});
+ assert.match(page.node('#login-error').textContent,/Tautan tidak valid/);
+});
+
 test('cooldown ticks do not repeat live-region announcements',async()=>{
- const {mountLogin}=await loginModule();const page=fakePage();let text='';let writes=0;
+ const {mountLogin}=await loginModule();const page=fakePage();page.window.location.search='';let text='';let writes=0;
  Object.defineProperty(page.node('#login-status'),'textContent',{get:()=>text,set:value=>{text=value;writes++;}});
  mountLogin({document:page.document,window:page.window,fetch:async()=>({ok:true})});
- await page.submit('#send-code-form');const before=writes;
+ await page.submit('#send-link-form');const before=writes;
  page.events.get('tick')();page.events.get('tick')();assert.equal(writes,before);
 });
 
@@ -126,10 +115,7 @@ test('cloud wording distinguishes server access from visual privacy and logout i
 test('login document is an accessible, amount-free, same-origin owner sign-in',async()=>{
  const html=await readFile(new URL('../cloud/login.html',import.meta.url),'utf8').catch(()=> '');
  assert.match(html,/<html lang="id"/);
- assert.match(html,/autocomplete="one-time-code"/);
- assert.match(html,/inputmode="numeric"/);
- assert.match(html,/pattern="\[0-9\]\{6,10\}"/);
- assert.match(html,/<label[^>]*for="login-code"/);
+    assert.match(html,/id="send-link"/);
  assert.match(html,/role="alert"/);assert.match(html,/role="status"/);
  assert.match(html,/src="\/login.mjs"/);assert.match(html,/href="\/styles.css"/);
  assert.match(html,/15 menit/);assert.match(html,/sintetis/);

@@ -27,11 +27,11 @@ test('owner can read synthetic dashboard; overview excludes personal balance',as
 
 test('cloud perimeter rejects foreign hosts, cross-site mutations and unconfigured auth',async()=>{
  let calls=0;
- const auth={...baseAuth,sendCode:async()=>{calls++;return {status:200,body:{ok:true}};}};
+ const auth={...baseAuth,sendLink:async()=>{calls++;return {status:200,body:{ok:true}};}};
  const handle=await make(auth);
  assert.equal((await handle(new Request('https://evil.example/demo/personal.json'))).status,403);
  for(const headers of [{},{origin:'https://evil.example'},{origin, 'sec-fetch-site':'cross-site'}]){
-  const res=await handle(request('/auth/send-code',{method:'POST',headers:{'content-type':'application/json',...headers},body:'{}'}));assert.equal(res.status,403);
+  const res=await handle(request('/auth/send-link',{method:'POST',headers:{'content-type':'application/json',...headers},body:'{}'}));assert.equal(res.status,403);
  }
  assert.equal(calls,0);
  const locked=await make({...baseAuth,configured:false});
@@ -57,17 +57,16 @@ test('cloud perimeter rejects foreign hosts, cross-site mutations and unconfigur
 });
 
  test('same-origin JSON auth requests use bounded input, cookies and cooldown',async()=>{
- let sends=0;let code;
- const cookie='__Host-charisna=test; Path=/; HttpOnly; Secure; SameSite=Strict';
- const handle=await make({...baseAuth,sendCode:async()=>{sends++;return {status:200,body:{ok:true}};},verifyCode:async value=>{code=value;return {status:200,body:{ok:true},cookie};},logout:async()=>({status:200,body:{ok:true},cookie:'__Host-charisna=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Strict'})});
+ let sends=0;
+ const cookie='__Host-charisna-pkce=test; Path=/; HttpOnly; Secure; SameSite=Lax';
+ const handle=await make({...baseAuth,sendLink:async()=>{sends++;return {status:200,body:{ok:true},cookie};},logout:async()=>({status:200,body:{ok:true},cookie:'__Host-charisna=; Max-Age=0; Path=/; Secure; HttpOnly; SameSite=Strict'})});
  const post=(path,body,more={})=>handle(request(path,{method:'POST',headers:{origin,'content-type':'application/json',...more},body}));
- assert.equal((await post('/auth/send-code','{}')).status,200);assert.equal(sends,1);
- assert.equal((await post('/auth/send-code','{}')).status,429);assert.equal(sends,1);
- assert.equal((await post('/auth/verify','{')).status,400);
- assert.equal((await post('/auth/verify','x'.repeat(2049))).status,413);
- assert.equal((await post('/auth/verify','{}',{'content-type':'text/plain'})).status,415);
- assert.equal((await post('/auth/verify','{"code":"not-a-code"}')).status,400);
- const verified=await post('/auth/verify','{"code":"123456"}');assert.equal(verified.status,200);assert.equal(code,'123456');assert.equal(verified.headers.get('set-cookie'),cookie);assert.doesNotMatch(await verified.text(),/123456|test/);
+ const sent=await post('/auth/send-link','{}');assert.equal(sent.status,200);assert.equal(sends,1);assert.equal(sent.headers.get('set-cookie'),cookie);
+ assert.equal((await post('/auth/send-link','{}')).status,429);assert.equal(sends,1);
+ assert.equal((await post('/auth/logout','{')).status,400);
+ assert.equal((await post('/auth/logout','x'.repeat(2049))).status,413);
+ assert.equal((await post('/auth/logout','{}',{'content-type':'text/plain'})).status,415);
+ assert.equal((await post('/auth/verify','{}')).status,405);
  const logout=await post('/auth/logout','{}');assert.equal(logout.status,200);assert.match(logout.headers.get('set-cookie'),/Max-Age=0/);
 });
 
@@ -76,10 +75,33 @@ test('cloud perimeter rejects foreign hosts, cross-site mutations and unconfigur
  const res=await handle(request('/demo/personal.json'));assert.equal(res.status,503);assert.doesNotMatch(await res.text(),/secret-token|8750000/);
 });
 
- test('verification brute force has a finite instance budget',async()=>{
- let attempts=0;const handle=await make({...baseAuth,verifyCode:async()=>{attempts++;return {status:401,body:{error:'Ditolak'}};}});
- for(let i=0;i<9;i++)assert.equal((await handle(request('/auth/verify',{method:'POST',headers:{origin,'content-type':'application/json'},body:'{"code":"123456"}'}))).status,401);
- assert.equal((await handle(request('/auth/verify',{method:'POST',headers:{origin,'content-type':'application/json'},body:'{"code":"123456"}'}))).status,429);
+ test('callback exchanges the code, sets session, clears PKCE cookie and never echoes the code',async()=>{
+ let seen;
+ const handle=await make({...baseAuth,exchangeCode:async(req,code)=>{seen={code,cookie:req.headers.cookie};return {status:200,body:{ok:true},cookie:'__Host-charisna=s; Path=/; HttpOnly; Secure; SameSite=Strict'};},clearPkceCookie:()=>'__Host-charisna-pkce=; Max-Age=0'});
+ const res=await handle(request('/auth/callback?code=abcdefgh12345',{headers:{cookie:'__Host-charisna-pkce=p'}}));
+ assert.equal(res.status,200);assert.match(res.headers.get('content-type'),/text\/html/);const page=await res.text();assert.match(page,/http-equiv="refresh" content="0;url=\/"/);assert.doesNotMatch(page,/abcdefgh12345|<script/);
+ assert.deepEqual(res.headers.getSetCookie(),['__Host-charisna=s; Path=/; HttpOnly; Secure; SameSite=Strict','__Host-charisna-pkce=; Max-Age=0']);
+ assert.deepEqual(seen,{code:'abcdefgh12345',cookie:'__Host-charisna-pkce=p'});
+ assert.match(res.headers.get('cache-control'),/no-store/);
+});
+
+ test('callback failures and malformed queries redirect to login without cookies',async()=>{
+ let calls=0;
+ const handle=await make({...baseAuth,exchangeCode:async()=>{calls++;return {status:401,body:{}};},clearPkceCookie:()=>'x'});
+ for(const q of ['','?code=','?code=a&code=b','?code=abcdefgh&x=1','?error=access_denied','?code=abcdefgh']){
+  const res=await handle(request('/auth/callback'+q));assert.equal(res.status,303,q);assert.equal(res.headers.get('location'),'/login?error=1',q);assert.equal(res.headers.get('set-cookie'),null);
+ }
+ assert.equal(calls,1);
+ assert.equal((await handle(request('/auth/callback?code=abcdefgh',{method:'POST',headers:{origin,'content-type':'application/json'},body:'{}'}))).status,405);
+ const locked=await make({...baseAuth,configured:false});
+ const lockedRes=await locked(request('/auth/callback?code=abcdefgh'));assert.equal(lockedRes.status,303);assert.equal(lockedRes.headers.get('location'),'/login?error=1');
+ assert.equal((await handle(request('/auth/callback?code=abcdefgh',{method:'HEAD'}))).status,405);assert.equal(calls,1);
+});
+
+ test('callback brute force has a finite instance budget',async()=>{
+ let attempts=0;const handle=await make({...baseAuth,exchangeCode:async()=>{attempts++;return {status:401,body:{}};}});
+ for(let i=0;i<9;i++)assert.equal((await handle(request('/auth/callback?code=abcdefgh'))).status,303);
+ assert.equal((await handle(request('/auth/callback?code=abcdefgh'))).status,303);
  assert.equal(attempts,9);
 });
 
@@ -112,7 +134,7 @@ test('HEAD responses preserve status and headers but never include a body',async
   ['foreign origin',guest,'https://evil.example/demo/personal.json',403],
   ['authorization denied',denied,origin+'/demo/personal.json',403],
   ['not found',owner,origin+'/missing',404],
-  ['auth method denied',guest,origin+'/auth/verify',405,{allow:'POST'}],
+  ['auth method denied',guest,origin+'/auth/send-link',405,{allow:'POST'}],
   ['auth unconfigured',unconfigured,origin+'/demo/personal.json',503],
   ['origin unconfigured',missingOrigin,origin+'/demo/personal.json',503],
   ['auth exception',authFailure,origin+'/demo/personal.json',503],
@@ -134,4 +156,11 @@ test('HEAD responses preserve status and headers but never include a body',async
 test('missing or malformed canonical origin fails closed',async()=>{
  const {createCloudHandler}=await import('../cloud/handler.mjs');
  for(const SITE_ORIGIN of [undefined,'http://example.com',origin+'/','not-url']){const handle=createCloudHandler({env:{SITE_ORIGIN},auth:baseAuth});assert.equal((await handle(request('/demo/personal.json'))).status,503);}
+});
+
+test('local rejections (missing PKCE cookie) do not consume the callback budget',async()=>{
+ let upstream=0;const handle=await make({...baseAuth,exchangeCode:async()=>{const r={status:401,body:{}};Object.defineProperty(r,'local',{value:true});return r;}});
+ for(let i=0;i<20;i++)assert.equal((await handle(request('/auth/callback?code=abcdefgh'))).status,303);
+ const ok=await make({...baseAuth,exchangeCode:async()=>({status:200,body:{ok:true},cookie:'a=b'}),clearPkceCookie:()=>'c=d'});
+ assert.equal((await ok(request('/auth/callback?code=abcdefgh'))).status,200);
 });

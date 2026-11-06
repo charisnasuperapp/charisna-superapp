@@ -66,13 +66,18 @@ export function createOwnerAuth({ env = process.env, fetchImpl = fetch, now = ()
       body: JSON.stringify(body)
     });
   }
-  async function sendCode() {
+  const PKCE = '__Host-charisna-pkce';
+  async function sendLink() {
     if (!configured) return unavailable();
     try {
-      const response = await provider('otp', { email: env.OWNER_EMAIL, create_user: true });
+      const verifier = randomBytes(32).toString('base64url');
+      const challenge = createHash('sha256').update(verifier).digest('base64url');
+      const redirect = encodeURIComponent(`${env.SITE_ORIGIN}/auth/callback`);
+      const response = await provider(`otp?redirect_to=${redirect}`, { email: env.OWNER_EMAIL, create_user: true, code_challenge: challenge, code_challenge_method: 's256' });
       if (!response.ok) { await response.body?.cancel(); return unavailable(); }
       await readJson(response);
-      return { status: 200, body: { ok: true } };
+      const expires = now() + 3_600_000;
+      return { status: 200, body: { ok: true }, cookie: `${PKCE}=${seal({ kind: 'pkce', verifier, expires })}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600` };
     } catch { return unavailable(); }
   }
   const key = configured ? createHash('sha256').update(env.SESSION_SECRET).digest() : null;
@@ -109,11 +114,27 @@ export function createOwnerAuth({ env = process.env, fetchImpl = fetch, now = ()
     }
     return { status: 200, user: { id: user.id, email: user.email.trim().toLowerCase() } };
   }
-  async function verifyCode(code) {
+  function readPkce(request) {
+    const raw = request?.headers?.cookie;
+    if (typeof raw !== 'string' || raw.length > 8192) throw new Error('invalid cookie');
+    const matches = raw.split(';').map(part => part.trim()).filter(part => part.startsWith(`${PKCE}=`));
+    if (matches.length !== 1) throw new Error('ambiguous cookie');
+    const value = matches[0].slice(PKCE.length + 1);
+    if (value.length < 40 || value.length > 4096 || !/^[A-Za-z0-9_-]+$/.test(value)
+      || Buffer.from(value, 'base64url').toString('base64url') !== value) throw new Error('invalid cookie');
+    const data = open(value);
+    if (!data || data.kind !== 'pkce' || typeof data.verifier !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(data.verifier)
+      || !Number.isSafeInteger(data.expires) || data.expires <= now()) throw new Error('invalid pkce');
+    return data;
+  }
+  const local = result => Object.defineProperty(result, 'local', { value: true });
+  async function exchangeCode(request, code) {
     if (!configured) return unavailable();
-    if (typeof code !== 'string' || code.length < 6 || code.length > 10 || /[^0-9]/.test(code)) return { status: 400, body: { error: 'Invalid code' } };
+    if (typeof code !== 'string' || !/^[A-Za-z0-9._-]{8,200}$/.test(code)) return local({ status: 400, body: { error: 'Invalid code' } });
+    let pkce;
+    try { pkce = readPkce(request); } catch { return local({ status: 401, body: { error: 'Authentication required' } }); }
     try {
-      const response = await provider('verify', { type: 'email', token: code, email: env.OWNER_EMAIL });
+      const response = await provider('token?grant_type=pkce', { auth_code: code, code_verifier: pkce.verifier });
       if (!response.ok) {
         await response.body?.cancel();
         return [400, 401, 403, 422].includes(response.status) ? { status: 401, body: { error: 'Authentication required' } } : unavailable();
@@ -160,5 +181,6 @@ export function createOwnerAuth({ env = process.env, fetchImpl = fetch, now = ()
     }
     return { status: 200, body: { ok: true }, cookie: clearCookie() };
   }
-  return { configured, sendCode, verifyCode, authorize, clearCookie, logout };
+  const clearPkceCookie = () => `${PKCE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+  return { configured, sendLink, exchangeCode, authorize, clearCookie, clearPkceCookie, logout };
 }

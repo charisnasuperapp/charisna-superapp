@@ -21,7 +21,7 @@ const config = () => ({
   OWNER_EMAIL: 'charisna.superapp@gmail.com',
   SESSION_SECRET: 'unit-test-only-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 });
-const authRequest = env => new Request(`${env.SITE_ORIGIN}/auth/send-code`, {
+const authRequest = env => new Request(`${env.SITE_ORIGIN}/auth/send-link`, {
   method: 'POST', headers: {'content-type': 'application/json', origin: env.SITE_ORIGIN}, body: '{}'
 });
 
