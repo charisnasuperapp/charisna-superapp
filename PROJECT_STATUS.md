@@ -2,7 +2,7 @@
 
 ## Tahap dan workspace
 
-- Tahap: prototipe lokal **Fokus Perhatian v2.2**, data sintetis; validasi akhir/push sedang diselesaikan.
+- Tahap: prototipe lokal **Fokus Perhatian v2.2**, data sintetis; validasi selesai dan kode sudah di-push ke repo private. Commit implementasi `4b79d57c1a95a3725735dd85225d6c6c4f5ff9c6` diverifikasi identik melalui Git lokal dan GitHub API.
 - Workspace: `C:/Users/ZENNITH/Documents/GitHub/charisna-superapp`.
 - Remote: `https://github.com/charisnasuperapp/charisna-superapp` (private). Commit awal remote `2387834` diperiksa; fetch Git berhasil dengan credential helper per perintah, tanpa perubahan konfigurasi global.
 - Awalnya tidak ada aplikasi/checkout SuperApp lokal di path ini. Remote hanya README. Dibuat aplikasi minimal Node stdlib + HTML/CSS/JS tanpa dependency npm. Git lokal diinisialisasi di workspace baru; tidak memodifikasi checkout sumber.
@@ -42,7 +42,7 @@ Tooling: Node `v24.22.1`, npm `11.19.1`, Git `2.53.0.windows.3`. Browser Playwri
 - Screenshot desktop/mobile diperiksa visual: tidak ada clipping/overflow, personal terpisah; teks waktu/disclaimer kemudian diperbesar. Rerun final setelah polish: **94 assertions PASS**, Edge `156.0.4314.58`, tanpa JS error; seluruh request loopback.
 - Review source independen menemukan reason-code casing pada unavailable; diperbaiki dan ditambah test integrasi dengan getDemoOverview.
 - Review precommit mesin menemukan bug canonical retry: `localeCompare` menyamakan urutan kolasi ID Unicode berbeda (`é` dan `e\u0301`), sehingga retry dengan urutan baris dibalik bisa ditolak sebagai `REVISION_CONFLICT`. Comparator diganti dengan perbandingan code-unit tanpa normalisasi identitas. Regression Unicode ditambahkan; parent menjalankan ulang **53 tests PASS, 0 failed**, syntax 11 modul PASS dan diff whitespace bersih. Review independen ulang fix **PASS**, tanpa security concern atau logic error tersisa dalam cakupan demo; reviewer menjalankan 46 tes rekonsiliasi lulus. Siap commit/push private.
-- `git fetch origin main` berhasil tanpa mengubah konfigurasi Hermes/Git global. Push belum dikonfirmasi pada penulisan status ini.
+- `git fetch origin main` dan push `main` berhasil memakai helper per perintah tanpa perubahan konfigurasi Hermes/Git global. Akun aktif `charisnasuperapp`; private flag dibaca ulang true. SHA implementasi lokal dan GitHub API sama: `4b79d57c1a95a3725735dd85225d6c6c4f5ff9c6`. Tidak melakukan deploy hosting.
 
 Bukti lokal: `artifacts/browser-results.json`, `artifacts/home-1440.png`, `home-768.png`, `home-320.png`, `pos-mobile.png`. Artifacts tidak masuk Git; laporan status ini dan test reproduktif masuk repo.
 
@@ -63,7 +63,7 @@ Buka `http://127.0.0.1:4173`. Tes: `npm test`; syntax: `npm run check`; lab: `np
 
 ## Berikutnya
 
-1. Selesaikan review mesin, rerun final Node + browser setelah polish; catat hasil aktual.
-2. Commit/push ke repo private sesuai izin terbaru owner, lalu verifikasi SHA remote dan private flag. Jangan mengklaim deploy online dari push.
+1. Review mesin dan final Node/browser selesai. Pertahankan tes regresi Unicode dan kontrak fixture pada perubahan berikutnya.
+2. Kode implementasi sudah di repo private; dokumentasi status push diperbarui terpisah. Push bukan deploy online.
 3. Owner meninjau UI lokal dan menentukan daftar usaha/akun/metrik pribadi; Teaching Pay tetap kandidat sampai disetujui.
 4. Rancang autentikasi server + kontrol akses dan pengujian 401/403 sebelum hosting/data nyata. Pilih kebutuhan Vercel/Supabase setelah itu; jangan aktifkan billing tanpa persetujuan.
