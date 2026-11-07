@@ -24,6 +24,8 @@ Status: implementasi sumber nyata pertama, 7 November 2026. Pemilik mengizinkan 
 
 Refresh token memberi akses sesuai akun MySalary selama masih berlaku. Kode konektor hanya membaca Firestore, tetapi token yang bocor dapat dipakai di luar SuperApp. Jangan tampilkan token di UI, respons, log, Git, atau dokumen. Rotasi `SESSION_SECRET` memutus seluruh koneksi; pemilik harus menghubungkan ulang. Setelah putus koneksi, token di D1 dihapus, tetapi token Firebase itu sendiri baru dicabut oleh Firebase ketika sesi dicabut dari sisi sumber.
 
+Jika `SESSION_SECRET` atau `SITE_ORIGIN` berubah, ciphertext lama tidak dapat dibuka. `GET /overview.json` menghapus **hanya baris dengan ciphertext yang sama** lalu mengembalikan `200 needs_reconnect`; kegagalan baca D1 tetap `503` dan tidak menghapus baris. Pemilik menghubungkan MySalary lagi di origin baru. Login baru menimpa state lama dan ringkasan dihitung ulang dari Firestore; snapshot terenkripsi lama tidak bisa dipulihkan tanpa kunci asal. Jika dua Worker memakai D1 yang sama, koneksi ulang pada Worker baru membuat Worker lama tidak dapat membuka baris baru. Jangan pakai Worker lama sesudah migrasi.
+
 ## Biaya dan batas gratis
 
 - D1 `charisna-teaching-state` memakai Workers Free. Tabelnya ada di `cloud/teaching.sql`. Binding dan jadwal ada di `wrangler.jsonc`.

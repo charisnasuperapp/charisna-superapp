@@ -56,7 +56,7 @@ export function mount({ document = globalThis.document, window = globalThis.wind
       if (!response.ok) throw Error('source');
       const data = await response.json();
       if (data.state === 'connected' || data.state === 'stale') showSummary(data);
-      else showConnection(data.state === 'needs_reconnect' ? 'Koneksi MySalary kedaluwarsa. Hubungkan kembali.' : 'Belum terhubung ke MySalary.');
+      else showConnection(data.state === 'needs_reconnect' ? 'Koneksi MySalary perlu dihubungkan kembali.' : 'Belum terhubung ke MySalary.');
     } catch { $('#load-status').textContent = 'Ringkasan belum tersedia. Periksa koneksi lalu muat ulang.'; }
   }
   $('#connect-form').addEventListener('submit', async event => {

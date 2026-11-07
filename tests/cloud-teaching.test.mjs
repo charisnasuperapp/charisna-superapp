@@ -13,10 +13,17 @@ const firestore = data => ({fields:Object.fromEntries(Object.entries(data).map((
 function setup() {
   let payload = null;
   let clock = Date.parse('2026-11-07T00:00:00Z');
+  let readFailure = false;
+  let deleteHook = null;
   const db = {prepare(sql) {return {bind(...args) {return {
-    async first() {assert.match(sql,/^SELECT/); return payload ? {payload}:null;},
+    async first() {assert.match(sql,/^SELECT/); if(readFailure) throw Error('D1 unavailable'); return payload ? {payload}:null;},
     async run() {
-      if (sql.startsWith('DELETE')) {const changes=payload===null?0:1; payload=null; return {meta:{changes}};}
+      if (sql.startsWith('DELETE')) {
+        if(deleteHook) {const action=deleteHook; deleteHook=null; await action();}
+        const changes=payload!==null && (!sql.includes('AND payload') || payload===args[1]) ? 1:0;
+        if(changes) payload=null;
+        return {meta:{changes}};
+      }
       if (sql.startsWith('INSERT')) {payload=args[1]; return {meta:{changes:1}};}
       if (sql.startsWith('UPDATE')) {
         assert.match(sql,/WHERE id\s*=\s*\?\s+AND payload\s*=\s*\?/i);
@@ -44,7 +51,10 @@ function setup() {
     throw Error(url);
   };
   const connector = createTeachingConnector({env,fetchImpl,now:()=>clock});
-  return {connector,requests,get stored(){return payload;},advance(ms){clock+=ms;},setOffline(value){fail=value;},onRequest(when,run){hook={when,run};},setUid(value){lookupUid=value;}};
+  return {connector,requests,get stored(){return payload;},advance(ms){clock+=ms;},setOffline(value){fail=value;},
+    setReadFailure(value){readFailure=value;},onDelete(run){deleteHook=run;},
+    connectorWith(overrides){return createTeachingConnector({env:{...env,...overrides},fetchImpl,now:()=>clock});},
+    onRequest(when,run){hook={when,run};},setUid(value){lookupUid=value;}};
 }
 
 test('monthly and annual pay follow source rounding and keep USD minor units', () => {
@@ -179,4 +189,44 @@ test('signal for another UID is refused and repeated signals are coalesced', asy
   await other.connector.connect({idToken,refreshToken});
   other.setUid('another-user-999');
   assert.equal((await other.connector.signal(idToken)).status,403);
+});
+
+test('rotated secret treats only unreadable ciphertext as reconnect and clears that row', async () => {
+  const s=setup();
+  await s.connector.connect({idToken,refreshToken});
+  const requests=s.requests.length;
+  const zen=s.connectorWith({SESSION_SECRET:'z'.repeat(64)});
+  assert.deepEqual(await zen.overview(),{status:200,body:{state:'needs_reconnect',source:'MySalary / Teaching Pay Audit'}});
+  assert.equal(s.stored,null);
+  assert.equal(s.requests.length,requests);
+  assert.equal((await zen.connect({idToken,refreshToken})).status,200);
+  assert.equal((await zen.overview()).body.state,'connected');
+});
+
+test('changed site origin also requires reconnect because it is authenticated data', async () => {
+  const s=setup();
+  await s.connector.connect({idToken,refreshToken});
+  const zen=s.connectorWith({SITE_ORIGIN:'https://zen.example'});
+  assert.equal((await zen.overview()).body.state,'needs_reconnect');
+  assert.equal(s.stored,null);
+});
+
+test('D1 read error stays a 503 and never deletes the connection', async () => {
+  const s=setup();
+  await s.connector.connect({idToken,refreshToken});
+  const before=s.stored;
+  s.setReadFailure(true);
+  assert.equal((await s.connector.overview()).status,503);
+  assert.equal(s.stored,before);
+});
+
+test('recovery delete is conditional and preserves a concurrent new connection', async () => {
+  const s=setup();
+  await s.connector.connect({idToken,refreshToken});
+  const zen=s.connectorWith({SESSION_SECRET:'z'.repeat(64)});
+  s.onDelete(()=>zen.connect({idToken,refreshToken:'n'.repeat(40)}));
+  const result=await zen.overview();
+  assert.equal(result.status,200);
+  assert.equal(result.body.state,'connected');
+  assert.ok(s.stored);
 });

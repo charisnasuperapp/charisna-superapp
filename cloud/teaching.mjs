@@ -6,6 +6,11 @@ const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 const TOKEN = /^[A-Za-z0-9._~-]{20,4096}$/;
 const UID = /^[A-Za-z0-9_-]{6,128}$/;
 const UNAVAILABLE = { state: 'source_error', message: 'Sumber sementara tidak tersedia.' };
+const RECONNECT = { state: 'needs_reconnect', source: 'MySalary / Teaching Pay Audit' };
+
+class UnreadableState extends Error {
+  constructor(version) { super('Stored connector state cannot be opened'); this.version = version; }
+}
 
 function decode(value) {
   if (!value || typeof value !== 'object') throw Error('bad field');
@@ -82,7 +87,9 @@ export function createTeachingConnector({ env, fetchImpl = fetch, now = () => Da
   // read() returns the decrypted state plus the exact ciphertext it came from, used as the compare-and-swap version.
   async function read() {
     const row = await env.TEACHING_STATE.prepare('SELECT payload FROM connector_state WHERE id = ?').bind('owner').first();
-    return row ? { data: open(row.payload), version: row.payload } : null;
+    if (!row) return null;
+    try { return { data: open(row.payload), version: row.payload }; }
+    catch { throw new UnreadableState(row.payload); }
   }
   // Owner-initiated connect replaces whatever is stored (new login wins).
   async function write(data) {
@@ -176,7 +183,15 @@ export function createTeachingConnector({ env, fetchImpl = fetch, now = () => Da
     if (!configured) return { status: 503, body: UNAVAILABLE };
     let state;
     try { state = await read(); }
-    catch { return { status: 503, body: UNAVAILABLE }; }
+    catch (error) {
+      if (!(error instanceof UnreadableState) || typeof error.version !== 'string') return { status: 503, body: UNAVAILABLE };
+      try {
+        const removed = await env.TEACHING_STATE.prepare('DELETE FROM connector_state WHERE id = ? AND payload = ?').bind('owner', error.version).run();
+        if (removed?.meta?.changes === 1) return { status: 200, body: RECONNECT };
+        if (removed?.meta?.changes !== 0) return { status: 503, body: UNAVAILABLE };
+        state = await read();
+      } catch { return { status: 503, body: UNAVAILABLE }; }
+    }
     if (!state) return { status: 200, body: { state: 'not_connected', source: 'MySalary / Teaching Pay Audit' } };
     const { data } = state;
     if (data.snapshot && Number.isSafeInteger(data.syncedAt) && now() - data.syncedAt < CACHE_MS)
