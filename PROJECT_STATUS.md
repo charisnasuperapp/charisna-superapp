@@ -90,3 +90,9 @@ Buka `http://127.0.0.1:4173`. Tes: `npm test`; syntax: `npm run check`; lab: `np
 2. Kode implementasi sudah di repo private; dokumentasi status push diperbarui terpisah. Push bukan deploy online.
 3. Owner meninjau UI lokal dan menentukan daftar usaha/akun/metrik pribadi; Teaching Pay tetap kandidat sampai disetujui.
 4. Autentikasi server, kontrol akses dan regresi 401/403/HEAD sudah selesai serta direview. Implementasi cloud didorong sebagai `9f2028554fc000e4b3e882c7173f240ee2133f09`; parent mencocokkan SHA lokal dengan GitHub API, memastikan repo private dan worktree bersih. Deployment ditahan karena template email aktual hanya magic link, sedangkan aplikasi menerima OTP numerik. Tentukan alur magic link gratis atau custom SMTP yang memenuhi target Rp0, kemudian implementasikan/uji/review perubahan sebelum deployment dan acceptance online. Jangan aktifkan billing tanpa persetujuan.
+
+## Update 2026-11-07: login magic link (PKCE)
+- Login OTP kode diganti magic link Supabase (PKCE). Endpoint: POST /auth/send-link, GET /auth/callback. Tautan harus dibuka di peramban yang sama dengan yang meminta (verifier PKCE ada di cookie __Host-charisna-pkce).
+- Worker live: https://charisna-superapp.charisna-superapp.workers.dev. Secret Wrangler sudah diset (SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, OWNER_EMAIL, SESSION_SECRET, SITE_ORIGIN).
+- Manual: tambahkan https://charisna-superapp.charisna-superapp.workers.dev/auth/callback ke Supabase Auth > URL Configuration (Redirect URLs) dan set Site URL ke origin yang sama.
+- Pilihan magic link adalah asumsi agen; batas email Supabase Free 2/jam.
