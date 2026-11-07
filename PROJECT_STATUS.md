@@ -97,6 +97,8 @@ Buka `http://127.0.0.1:4173`. Tes: `npm test`; syntax: `npm run check`; lab: `np
 - Manual: tambahkan https://charisna-superapp.charisna-superapp.workers.dev/auth/callback ke Supabase Auth > URL Configuration (Redirect URLs) dan set Site URL ke origin yang sama.
 - Pilihan magic link adalah asumsi agen; batas email Supabase Free 2/jam.
 
+> Handoff terbaru dan hasil verifikasi live 7 Nov 2026: `docs/HANDOFF_OPENAI_2026-11-07.md`.
+
 ## Status terkini (7 November 2026)
 
 > Bagian di bawah blok ini adalah sejarah prototipe lokal (data sintetis, tanpa D1). Yang berlaku sekarang:
