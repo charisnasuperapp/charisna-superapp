@@ -35,7 +35,7 @@ export function createMoneyConnector({env,now=()=>Date.now()}={}) {
   const aad = Buffer.from(`${env?.SITE_ORIGIN || ''}|money-v1`);
   const seal = data => {
     const iv=randomBytes(12), cipher=createCipheriv('aes-256-gcm',key,iv); cipher.setAAD(aad);
-    return Buffer.concat([iv,cipher.update(JSON.stringify(data)),cipher.final(),cipher.getAuthTag()]).toString('base64url');
+    return Buffer.concat([iv,cipher.update(JSON.stringify(data),'utf8'),cipher.final(),cipher.getAuthTag()]).toString('base64url');
   };
   const open = value => {
     const bytes=Buffer.from(value,'base64url'); if(bytes.length<29 || bytes.toString('base64url')!==value) throw Error('state');
