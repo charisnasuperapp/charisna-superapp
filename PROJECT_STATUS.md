@@ -109,7 +109,7 @@ Buka `http://127.0.0.1:4173`. Tes: `npm test`; syntax: `npm run check`; lab: `np
 > - **Konektor MySalary**: token Firebase disimpan **terenkripsi** (AES-256-GCM, kunci dari `SESSION_SECRET`) di D1 `charisna-teaching-state`. Kontrak: `docs/TEACHING_PAY_CONNECTOR.md`.
 > - **Sinkron**: Cron `0 */6 * * *` UTC sebagai cadangan; pemicu cepat `POST /connector/signal` aktif hanya setelah patch MySalary (`patches/mysalary-superapp-signal.patch`) diterapkan dan dideploy oleh pemilik repo sumber.
 > - **Vercel lama** (`charisna-superapp.vercel.app`) mengembalikan HTTP 500 dan **bukan** aplikasi aktif. Jangan dipakai.
-> - Bukti live koneksi MySalary nyata, Cron nyata, dan sinyal cepat nyata: **belum ada** (lihat PROJECT_STATUS.md).
+> - Bukti live koneksi MySalary nyata, Cron nyata, dan sinyal cepat nyata: koneksi nyata **TERVERIFIKASI 7 Nov 2026** (lihat bagian verifikasi live di bawah); Cron dan sinyal cepat masih belum ada buktinya.
 
 
 ## 7 November 2026: handoff MySalary nyata
@@ -118,3 +118,10 @@ Buka `http://127.0.0.1:4173`. Tes: `npm test`; syntax: `npm run check`; lab: `np
 - P1 endpoint `/connector/signal` dibangun dan diuji unit. Patch MySalary tersimpan di `patches/`; hak repo sumber hanya READ, jadi belum dideploy.
 - Tes: 128/128, syntax 24 modul. MySalary dengan patch: 42/42 tes.
 - **Belum terbukti**: koneksi MySalary nyata, kecocokan bulan/tahun, Cron nyata, sinyal cepat nyata, pengukuran CPU/subrequest Free.
+
+## 7 November 2026 (malam): rilis auth sandi + WebAuthn, verifikasi live koneksi MySalary
+
+- Rilis login sandi Supabase (sesi 30 hari, refresh single-flight, logout revokasi jujur), buka kunci WebAuthn (PIN/biometrik) via `@simplewebauthn/server`, gate lock rute HTML (303 → `/unlock`), error JSON presisi di client. Fix dari dua review keamanan independen + hardening TDD `cloud/auth.mjs`. Tes akhir: **188/188 PASS** (`npm test`), syntax `scripts/check.mjs` PASS.
+- Commit `00cb349` push ke `main`; Worker live Version `690849db-c7d9-4826-b526-c73f0e443e33` (`npx wrangler deploy`, Cron `0 */6 * * *`).
+- **Verifikasi live pertama (bukti nyata)**: Owner login sandi baru di Chrome profil sendiri; dashboard `Ringkasan penghasilan` menampilkan badge `• Dibaca dari sumber`, `Dibaca 7 Nov 2026, 19.00 WIB`, bulan terbaru $345,00 / 34,5 jam / 8 hari, tahun 2026 $3.510,00 / 351 jam — angka cocok dengan MySalary (bandingkan snapshot 7 Nov: 351 jam, 94 hari, $3.510). Tidak ada error. Diverifikasi via screenshot desktop owner (bukan sesi otomasi).
+- **Masih belum terbukti**: WebAuthn unlock di perangkat fisik owner (baru virtual authenticator), tabel D1 `passkeys` remote (CLI tanpa scope D1, error 7403), Cron nyata, sinyal cepat nyata.
