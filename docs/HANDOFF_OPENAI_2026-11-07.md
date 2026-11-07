@@ -40,3 +40,10 @@ SuperApp vs MySalary, sama persis:
 
 ## File kunci
 `cloud/teaching.mjs` (CAS, signal), `cloud/handler.mjs` (route `/connector/signal`), `cloud/overview.mjs`, `wrangler.jsonc`, `docs/TEACHING_PAY_CONNECTOR.md`, `docs/AUTH.md`, `docs/CLOUDFLARE.md`, `PROJECT_STATUS.md` (blok "Status terkini").
+
+## Update: PR #1 sudah di-merge dan live
+- Kolaborasi GitHub diberikan; akses agen ke `cocoyiyi88/teaching-pay-audit` kini WRITE.
+- PR #1 di-merge (squash) sebagai `de253ee976e57574c266d628566f7886147eeacb`. Vercel produksi MySalary otomatis deploy untuk commit itu.
+- Terverifikasi live: `https://www.mysalary.my.id/lib/firebase-rest.js` memuat `SUPERAPP_SIGNAL_URL` dan `#notifySuperApp`; header CSP memuat Worker SuperApp.
+- Terverifikasi: POST ke `/connector/signal` dari origin MySalary dengan token palsu dijawab 400; OPTIONS dijawab 204.
+- BELUM terbukti: sinyal end-to-end. Perlu satu simpan nyata di MySalary (muat ulang halaman agar service worker mengambil versi baru), lalu cek SuperApp berubah. Agen tidak mengubah data gaji nyata untuk menguji ini.
