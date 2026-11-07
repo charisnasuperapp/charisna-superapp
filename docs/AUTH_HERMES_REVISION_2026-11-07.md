@@ -1,6 +1,6 @@
 # Revisi Hermes — login sandi dan buka kunci perangkat
 
-Dokumen tambahan; dokumen sebelumnya dipertahankan sebagai sejarah. URL resmi: https://charisna-superapp.charisna-superapp.workers.dev/ . Status awal dokumen: implementasi lokal selesai, belum deploy revisi ini.
+Dokumen tambahan; dokumen sebelumnya dipertahankan sebagai sejarah. URL resmi: https://zen.charisna-superapp.workers.dev/ . Status awal dokumen: implementasi lokal selesai, belum deploy revisi ini.
 
 ## Cara memakai
 

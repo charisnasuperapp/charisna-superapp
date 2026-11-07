@@ -5,7 +5,7 @@ Tanpa sandi, token, atau nilai secret. Jangan tambahkan ke dokumen ini.
 
 ## Kondisi nyata
 - Repo: `charisnasuperapp/charisna-superapp` (private), branch `main`. Workspace lokal: `C:/Users/ZENNITH/Documents/GitHub/charisna-superapp`.
-- Live: `https://charisna-superapp.charisna-superapp.workers.dev/` (Cloudflare Worker Free, Cron `0 */6 * * *` UTC, D1 `charisna-teaching-state`, tabel `connector_state`). Vercel `charisna-superapp.vercel.app` HTTP 500 dan bukan target.
+- Live: `https://zen.charisna-superapp.workers.dev/` (Cloudflare Worker Free, Cron `0 */6 * * *` UTC, D1 `charisna-teaching-state`, tabel `connector_state`). Vercel `charisna-superapp.vercel.app` HTTP 500 dan bukan target.
 - Worker deploy terakhir: Version ID `f9242cfe-3813-4a1e-9a62-746a42ddd69b` (commit kode `d98a703`).
 - Login owner: Supabase magic link ke `charisna.superapp@gmail.com`. Cookie `__Host-charisna`, 15 menit.
 - Tes: 128/128 lulus, 24 modul valid (`npm test`, `npm run check`).

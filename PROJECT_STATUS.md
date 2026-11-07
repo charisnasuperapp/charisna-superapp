@@ -95,8 +95,8 @@ Buka `http://127.0.0.1:4173`. Tes: `npm test`; syntax: `npm run check`; lab: `np
 
 ## Update 2026-11-07: login magic link (PKCE)
 - Login OTP kode diganti magic link Supabase (PKCE). Endpoint: POST /auth/send-link, GET /auth/callback. Tautan harus dibuka di peramban yang sama dengan yang meminta (verifier PKCE ada di cookie __Host-charisna-pkce).
-- Worker live: https://charisna-superapp.charisna-superapp.workers.dev. Secret Wrangler sudah diset (SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, OWNER_EMAIL, SESSION_SECRET, SITE_ORIGIN).
-- Manual: tambahkan https://charisna-superapp.charisna-superapp.workers.dev/auth/callback ke Supabase Auth > URL Configuration (Redirect URLs) dan set Site URL ke origin yang sama.
+- Worker live: https://zen.charisna-superapp.workers.dev. Secret Wrangler sudah diset (SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, OWNER_EMAIL, SESSION_SECRET, SITE_ORIGIN).
+- Manual: tambahkan https://zen.charisna-superapp.workers.dev/auth/callback ke Supabase Auth > URL Configuration (Redirect URLs) dan set Site URL ke origin yang sama.
 - Pilihan magic link adalah asumsi agen; batas email Supabase Free 2/jam.
 
 > Handoff terbaru dan hasil verifikasi live 7 Nov 2026: `docs/HANDOFF_OPENAI_2026-11-07.md`.
@@ -105,7 +105,7 @@ Buka `http://127.0.0.1:4173`. Tes: `npm test`; syntax: `npm run check`; lab: `np
 
 > Bagian di bawah blok ini adalah sejarah prototipe lokal (data sintetis, tanpa D1). Yang berlaku sekarang:
 >
-> - **Runtime nyata**: Cloudflare Worker `https://charisna-superapp.charisna-superapp.workers.dev/`, login owner via Supabase magic link. Demo lokal (`server.mjs`, `demo/`) tetap terpisah dan tidak disajikan oleh Worker.
+> - **Runtime nyata**: Cloudflare Worker `https://zen.charisna-superapp.workers.dev/`, login owner via Supabase magic link. Demo lokal (`server.mjs`, `demo/`) tetap terpisah dan tidak disajikan oleh Worker.
 > - **Konektor MySalary**: token Firebase disimpan **terenkripsi** (AES-256-GCM, kunci dari `SESSION_SECRET`) di D1 `charisna-teaching-state`. Kontrak: `docs/TEACHING_PAY_CONNECTOR.md`.
 > - **Sinkron**: Cron `0 */6 * * *` UTC sebagai cadangan; pemicu cepat `POST /connector/signal` aktif hanya setelah patch MySalary (`patches/mysalary-superapp-signal.patch`) diterapkan dan dideploy oleh pemilik repo sumber.
 > - **Vercel lama** (`charisna-superapp.vercel.app`) mengembalikan HTTP 500 dan **bukan** aplikasi aktif. Jangan dipakai.

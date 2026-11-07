@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "charisna-superapp",
+  "name": "zen",
   "main": "cloud/worker.mjs",
   "compatibility_date": "2026-11-06",
   "compatibility_flags": ["nodejs_compat"],
