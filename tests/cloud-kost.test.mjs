@@ -3,7 +3,7 @@ import {test} from 'node:test';
 import {createKostConnector,validateKostSnapshot} from '../cloud/kost.mjs';
 import {createCloudHandler} from '../cloud/handler.mjs';
 
-const snapshot={schema:1,month:'2026-11',source:'local_snapshot',properties:[{id:'P-1',name:'Kost Utama',occupied_rooms:2,total_rooms:3,paid_this_month_idr:'1200000',unpaid_bills_idr:'200000'}],unassigned_bills:0};
+const snapshot={schema:1,month:'2026-11',source:'local_snapshot',is_demo:false,properties:[{id:'P-1',name:'Kost Utama',occupied_rooms:2,total_rooms:3,paid_this_month_idr:'1200000',unpaid_bills_idr:'200000'}],unassigned_bills:0};
 function fixture(){
  const rows=new Map();let clock=Date.parse('2026-11-07T00:00:00Z');
  const db={prepare(sql){return{bind(...args){return{
@@ -21,6 +21,8 @@ function fixture(){
 
 test('KOST validates per-property aggregates and rejects personal details',()=>{
  assert.deepEqual(validateKostSnapshot(snapshot),snapshot);
+ assert.equal(validateKostSnapshot({...snapshot,is_demo:true}).is_demo,true);
+ assert.throws(()=>validateKostSnapshot({...snapshot,is_demo:'false'}));
  assert.throws(()=>validateKostSnapshot({...snapshot,properties:[snapshot.properties[0],snapshot.properties[0]]}));
  assert.throws(()=>validateKostSnapshot({...snapshot,properties:[{...snapshot.properties[0],occupied_rooms:4}]}));
  assert.throws(()=>validateKostSnapshot({...snapshot,properties:[{...snapshot.properties[0],paid_this_month_idr:-1}]}));

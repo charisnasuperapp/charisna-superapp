@@ -10,7 +10,7 @@ Kartu `/kost` menampilkan setiap properti: kamar terisi/total, pembayaran diteri
 - Pembayaran diterima bulan ini: jumlah `amount` tagihan `LUNAS` yang `paidDate` berada di bulan Asia/Jakarta saat snapshot dibuat. Pembayaran parsial dari tagihan bertahap belum dihitung.
 - Tagihan belum lunas: jumlah `amount` seluruh tagihan `BELUM_LUNAS` tanpa batas periode. Ini nilai tagihan, bukan piutang akuntansi yang direkonsiliasi.
 - Tagihan tanpa `propertyId` dipetakan hanya jika nomor kamar cocok tepat satu kamar. Tagihan ambigu dikecualikan dari kartu dan dihitung sebagai `unassigned_bills`.
-- Data contoh bawaan ditolak. Identitas penghuni, nomor telepon, foto, dan rincian tagihan tidak dikirim.
+- Data contoh bawaan boleh dikirim dengan `is_demo: true` dan label jelas di kartu. Setelah semua contoh bawaan diganti, snapshot berikutnya memakai `is_demo: false` dan label hilang. Identitas penghuni, nomor telepon, foto, dan rincian tagihan tidak dikirim.
 
 ## Hubungkan
 
@@ -26,7 +26,7 @@ Kode hanya sekali pakai. Kunci sinkron tersimpan di localStorage perangkat Owner
 `POST /kost/push` hanya menerima origin situs KOST yang diizinkan, pasangan kode sekali pakai atau kunci sinkron, dan `snapshot` berikut:
 
 ```json
-{"schema":1,"month":"2026-11","source":"local_snapshot","properties":[{"id":"P-1","name":"Kost Utama","occupied_rooms":2,"total_rooms":3,"paid_this_month_idr":"1200000","unpaid_bills_idr":"200000"}],"unassigned_bills":0}
+{"schema":1,"month":"2026-11","source":"local_snapshot","is_demo":false,"properties":[{"id":"P-1","name":"Kost Utama","occupied_rooms":2,"total_rooms":3,"paid_this_month_idr":"1200000","unpaid_bills_idr":"200000"}],"unassigned_bills":0}
 ```
 
 Nilai IDR dikirim sebagai string bilangan bulat agar tidak memakai pecahan float. Endpoint overview hanya dapat dibaca sesi Owner SuperApp. Tidak ada D1 baru atau biaya layanan tambahan yang dipasang oleh konektor ini.

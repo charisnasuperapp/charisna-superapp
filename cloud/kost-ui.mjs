@@ -9,8 +9,10 @@ async function load(){
     const connected=['connected','stale'].includes(data.state);
     $('kost-connect').hidden=connected;$('kost-summary').hidden=!connected;
     if(!connected){$('kost-properties').replaceChildren();$('kost-code').textContent=data.state==='needs_reconnect'?'Koneksi perlu dibuat ulang.':'Belum terhubung.';return;}
-    $('kost-quality').textContent=data.state==='stale'?'Data tertunda':'Snapshot lokal';
-    $('kost-quality').className=`badge ${data.state==='stale'?'stale':'verified'}`;
+    const isDemo=data.snapshot.is_demo===true;
+    $('kost-quality').textContent=isDemo?data.state==='stale'?'Data contoh · tertunda':'Data contoh':data.state==='stale'?'Data tertunda':'Snapshot lokal';
+    $('kost-quality').className=`badge ${isDemo||data.state==='stale'?'stale':'verified'}`;
+    $('kost-demo-note').hidden=!isDemo;
     $('kost-month').textContent=`Bulan pembayaran: ${data.snapshot.month}`;
     $('kost-time').textContent=`Diterima ${new Intl.DateTimeFormat('id-ID',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Jakarta'}).format(new Date(data.received_at))} WIB`;
     $('kost-unassigned').textContent=data.snapshot.unassigned_bills?`${data.snapshot.unassigned_bills} tagihan belum dapat dipetakan ke properti. Angkanya tidak masuk kartu di bawah.`:'';
@@ -25,7 +27,7 @@ async function load(){
       return card;
     });
     $('kost-properties').replaceChildren(...cards);
-  }catch{$('kost-summary').hidden=true;$('kost-properties').replaceChildren();$('kost-status').hidden=false;$('kost-status').textContent='Ringkasan belum tersedia. Coba muat ulang.';}
+  }catch{$('kost-summary').hidden=true;$('kost-properties').replaceChildren();$('kost-demo-note').hidden=true;$('kost-status').hidden=false;$('kost-status').textContent='Ringkasan belum tersedia. Coba muat ulang.';}
 }
 $('kost-pair').addEventListener('click',async()=>{
   $('kost-pair').disabled=true;

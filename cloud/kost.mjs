@@ -7,7 +7,7 @@ const STALE=24*60*60*1000, PAIR_TTL=10*60*1000;
 const result=(status,body)=>({status,body});
 
 export function validateKostSnapshot(input){
-  if(!input||input.schema!==1||!MONTH.test(input.month)||input.source!=='local_snapshot'||!Array.isArray(input.properties)||input.properties.length>100||!Number.isSafeInteger(input.unassigned_bills)||input.unassigned_bills<0)throw Error('snapshot');
+  if(!input||input.schema!==1||!MONTH.test(input.month)||input.source!=='local_snapshot'||!Array.isArray(input.properties)||input.properties.length>100||!Number.isSafeInteger(input.unassigned_bills)||input.unassigned_bills<0||input.is_demo!==undefined&&typeof input.is_demo!=='boolean')throw Error('snapshot');
   const seen=new Set();
   const properties=input.properties.map(property=>{
     if(!property||typeof property.id!=='string'||!/^[\w-]{1,100}$/.test(property.id)||seen.has(property.id)||typeof property.name!=='string'||!property.name.trim()||property.name.length>100)throw Error('property');
@@ -16,7 +16,7 @@ export function validateKostSnapshot(input){
     for(const key of ['paid_this_month_idr','unpaid_bills_idr'])if(typeof property[key]!=='string'||!AMOUNT.test(property[key])||!Number.isSafeInteger(Number(property[key]))||Number(property[key])<0)throw Error('amount');
     return {id:property.id,name:property.name.trim(),occupied_rooms:property.occupied_rooms,total_rooms:property.total_rooms,paid_this_month_idr:property.paid_this_month_idr,unpaid_bills_idr:property.unpaid_bills_idr};
   });
-  return {schema:1,month:input.month,source:'local_snapshot',properties,unassigned_bills:input.unassigned_bills};
+  return {schema:1,month:input.month,source:'local_snapshot',is_demo:input.is_demo===true,properties,unassigned_bills:input.unassigned_bills};
 }
 
 export function createKostConnector({env,now=()=>Date.now()}={}){
