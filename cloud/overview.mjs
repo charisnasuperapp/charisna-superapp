@@ -5,23 +5,33 @@ const post = body => ({ method: 'POST', headers: { 'Content-Type': 'application/
 export function mount({ document = globalThis.document, window = globalThis.window, fetchImpl = globalThis.fetch } = {}) {
   const $ = selector => document.querySelector(selector);
 
-  function getLang() {
+  function getCookie(name, def = '') {
     try {
-      const m = document.cookie ? document.cookie.match(/(?:^|;\s*)charisna_lang=([a-z]{2})/) : null;
-      return m ? m[1] : 'id';
-    } catch { return 'id'; }
+      const m = document.cookie ? document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]+)')) : null;
+      return m ? decodeURIComponent(m[1]) : def;
+    } catch { return def; }
   }
-  function setLang(lang) {
+  function setCookie(name, val) {
     try {
-      document.cookie = `charisna_lang=${lang}; Path=/; SameSite=Lax; Max-Age=31536000`;
-      if (document.documentElement) document.documentElement.lang = lang;
+      document.cookie = `${name}=${encodeURIComponent(val)}; Path=/; SameSite=Lax; Max-Age=31536000`;
     } catch {}
   }
 
-  let currentLang = getLang();
+  let currentLang = getCookie('charisna_lang', 'id');
+  let isPrivacyActive = getCookie('charisna_privacy', '0') === '1';
+  let activeYearFilter = 'all';
+  let activeSearchQuery = '';
+  let cachedData = null;
+  let cachedAllMonths = [];
+  let cachedYears = [];
 
   const i18n = {
     id: {
+      role: 'Pemilik',
+      security: 'Keamanan',
+      privacy: 'Privasi',
+      shortcuts: 'Pintasan',
+      sourceLabel: 'Sumber nyata',
       eyebrow: 'BERANDA PEMILIK',
       title: 'Ringkasan penghasilan',
       subtitle: 'Data MySalary dibaca langsung dari akun yang Anda hubungkan.',
@@ -44,10 +54,7 @@ export function mount({ document = globalThis.document, window = globalThis.wind
       badgeVerified: 'Dibaca dari sumber',
       badgeStale: 'Data tertunda',
       btnDisconnect: 'Putuskan koneksi MySalary',
-      btnSecurity: 'Keamanan',
       btnLogout: 'Keluar',
-      sourceLabel: 'Sumber nyata',
-      roleLabel: 'Pemilik',
       footerNote: 'Sumber nyata · hanya baca · khusus pemilik',
       sourceNote: 'Sumber: MySalary Firebase. Kelas dan catatan harian tidak disalin ke SuperApp. Sinkron terjadwal setiap 6 jam dan saat ringkasan dibuka setelah 1 jam.',
       hoursUnit: 'jam',
@@ -57,9 +64,20 @@ export function mount({ document = globalThis.document, window = globalThis.wind
       syncNoTime: 'Waktu sinkron belum tersedia',
       noMonth: 'Belum ada catatan bulan',
       noYear: 'Belum ada catatan tahun',
-      scrollSuffix: '(Gulir)'
+      scrollSuffix: '(Gulir)',
+      allYears: 'Semua',
+      searchPlaceholder: 'Cari bulan...',
+      copyCsv: 'Salin CSV',
+      copiedToast: 'Data rekap disalin ke clipboard!',
+      shortcutsTitle: 'Pintasan Keyboard',
+      shortcutsClose: 'Tutup'
     },
     en: {
+      role: 'Owner',
+      security: 'Settings',
+      privacy: 'Privacy',
+      shortcuts: 'Shortcuts',
+      sourceLabel: 'Live source',
       eyebrow: 'OWNER DASHBOARD',
       title: 'Earnings summary',
       subtitle: 'MySalary data read directly from your connected account.',
@@ -82,10 +100,7 @@ export function mount({ document = globalThis.document, window = globalThis.wind
       badgeVerified: 'Read from source',
       badgeStale: 'Delayed data',
       btnDisconnect: 'Disconnect MySalary',
-      btnSecurity: 'Settings',
       btnLogout: 'Log out',
-      sourceLabel: 'Live source',
-      roleLabel: 'Owner',
       footerNote: 'Live source · read-only · owner access',
       sourceNote: 'Source: MySalary Firebase. Classes and daily logs are not copied to SuperApp. Scheduled sync every 6 hours and upon opening summary after 1 hour.',
       hoursUnit: 'hours',
@@ -95,11 +110,17 @@ export function mount({ document = globalThis.document, window = globalThis.wind
       syncNoTime: 'Sync timestamp unavailable',
       noMonth: 'No monthly records',
       noYear: 'No annual records',
-      scrollSuffix: '(Scroll)'
+      scrollSuffix: '(Scroll)',
+      allYears: 'All',
+      searchPlaceholder: 'Search month...',
+      copyCsv: 'Copy CSV',
+      copiedToast: 'Summary data copied to clipboard!',
+      shortcutsTitle: 'Keyboard Shortcuts',
+      shortcutsClose: 'Close'
     }
   };
 
-  if (document.createElement && $('.page-heading')) {
+  if (document.createElement && $('.page-heading') && !$('.source-tabs')) {
     const nav = document.createElement('nav'); nav.className = 'source-tabs'; nav.setAttribute('aria-label', 'Sumber data');
     const teaching = document.createElement('a'); teaching.href = '/'; teaching.className = 'button primary'; teaching.setAttribute('aria-current', 'page'); teaching.textContent = 'Teaching Pay Audit';
     const moneyTab = document.createElement('a'); moneyTab.href = '/money'; moneyTab.className = 'button secondary'; moneyTab.textContent = 'Money Management';
@@ -109,10 +130,37 @@ export function mount({ document = globalThis.document, window = globalThis.wind
   }
 
   let connecting = false;
-  let cachedData = null;
+
+  function showToast(message) {
+    const toast = $('#toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => { toast.classList.remove('show'); }, 2800);
+  }
+
+  function applyPrivacy(active) {
+    isPrivacyActive = active;
+    setCookie('charisna_privacy', active ? '1' : '0');
+    if (document.body) document.body.classList.toggle('privacy-active', active);
+    const btn = $('#privacy-btn');
+    if (btn) {
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    }
+  }
+
+  function toggleShortcuts(show) {
+    const modal = $('#shortcuts-modal');
+    if (!modal) return;
+    const shouldOpen = show !== undefined ? show : !modal.classList.contains('open');
+    modal.classList.toggle('open', shouldOpen);
+    modal.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+  }
 
   function applyStaticTranslations(lang) {
     const t = i18n[lang] || i18n.id;
+    if (document.documentElement) document.documentElement.lang = lang;
     if ($('#page-eyebrow')) $('#page-eyebrow').textContent = t.eyebrow;
     if ($('#page-title')) $('#page-title').innerHTML = `${t.title}<span class="title-dot">.</span>`;
     if ($('#page-subtitle')) $('#page-subtitle').textContent = t.subtitle;
@@ -135,12 +183,19 @@ export function mount({ document = globalThis.document, window = globalThis.wind
     if ($('#th-year-days')) $('#th-year-days').textContent = t.thDays;
     if ($('#th-year-pay')) $('#th-year-pay').textContent = t.thPay;
     if ($('#disconnect-button')) $('#disconnect-button').textContent = t.btnDisconnect;
-    if ($('#nav-security')) $('#nav-security').textContent = t.btnSecurity;
+    if ($('#nav-security')) $('#nav-security').textContent = t.security;
     if ($('#logout-button')) $('#logout-button').textContent = t.btnLogout;
     if ($('#topbar-source-label')) $('#topbar-source-label').textContent = t.sourceLabel;
-    if ($('#topbar-role')) $('#topbar-role').textContent = t.roleLabel;
+    if ($('#topbar-role')) $('#topbar-role').textContent = t.role;
+    if ($('#privacy-lbl')) $('#privacy-lbl').textContent = t.privacy;
     if ($('#source-note')) $('#source-note').textContent = t.sourceNote;
     if ($('#footer-note')) $('#footer-note').textContent = t.footerNote;
+    if ($('#table-search')) $('#table-search').setAttribute('placeholder', t.searchPlaceholder);
+    if ($('#lbl-export-monthly')) $('#lbl-export-monthly').textContent = t.copyCsv;
+    if ($('#lbl-export-annual')) $('#lbl-export-annual').textContent = t.copyCsv;
+    if ($('#btn-year-all')) $('#btn-year-all').textContent = t.allYears;
+    if ($('#shortcuts-title')) $('#shortcuts-title').textContent = t.shortcutsTitle;
+    if ($('#close-shortcuts-btn')) $('#close-shortcuts-btn').textContent = t.shortcutsClose;
 
     if (document.querySelectorAll) {
       document.querySelectorAll('.lang-btn').forEach(btn => {
@@ -161,11 +216,85 @@ export function mount({ document = globalThis.document, window = globalThis.wind
     if (skeleton) skeleton.hidden = true;
   }
 
-  function showSummary(data) {
-    cachedData = data;
+  function filterAndRenderMonthRows() {
     const t = i18n[currentLang] || i18n.id;
-    applyStaticTranslations(currentLang);
+    let filtered = cachedAllMonths;
+    if (activeYearFilter !== 'all') {
+      filtered = filtered.filter(m => m.month.startsWith(activeYearFilter));
+    }
+    if (activeSearchQuery.trim()) {
+      const q = activeSearchQuery.toLowerCase();
+      filtered = filtered.filter(m => {
+        const name = monthLabel(m.month, currentLang).toLowerCase();
+        return name.includes(q) || m.month.includes(q);
+      });
+    }
 
+    if ($('#month-count-pill')) {
+      $('#month-count-pill').textContent = `${filtered.length} ${t.thMonth} ${t.scrollSuffix}`;
+    }
+
+    const rows = $('#month-rows');
+    if (!rows) return;
+    rows.replaceChildren();
+
+    const maxHours = Math.max(1, ...filtered.map(m => m.hours || 0));
+    for (const item of filtered) {
+      const row = document.createElement('tr');
+      const isZero = !item.hours && !Number(item.pay_minor);
+      if (isZero) row.className = 'row-zero';
+
+      // Bulan
+      const monthCell = document.createElement('td');
+      const monthWrap = document.createElement('div');
+      monthWrap.className = 'cell-month-wrap';
+      const monthName = document.createElement('span');
+      monthName.className = 'month-name';
+      monthName.textContent = monthLabel(item.month, currentLang);
+      monthWrap.append(monthName);
+      monthCell.append(monthWrap);
+
+      // Jam
+      const hoursCell = document.createElement('td');
+      const hoursWrap = document.createElement('div');
+      hoursWrap.className = 'metric-cell-wrap';
+      const hoursVal = document.createElement('span');
+      hoursVal.className = 'hours-val';
+      hoursVal.textContent = `${item.hours} ${t.hoursUnit}`;
+      hoursWrap.append(hoursVal);
+      if (item.hours > 0) {
+        const barWrap = document.createElement('div');
+        barWrap.className = 'workload-bar-wrap';
+        const barFill = document.createElement('div');
+        barFill.className = 'workload-bar-fill';
+        barFill.style.width = `${Math.min(100, Math.round((item.hours / maxHours) * 100))}%`;
+        barWrap.append(barFill);
+        hoursWrap.append(barWrap);
+      }
+      hoursCell.append(hoursWrap);
+
+      // Hari
+      const daysCell = document.createElement('td');
+      const daysBadge = document.createElement('span');
+      daysBadge.className = `days-pill ${item.teaching_days === 0 ? 'zero' : ''}`;
+      daysBadge.textContent = item.teaching_days === 0 ? '—' : `${item.teaching_days} ${t.daysUnit}`;
+      daysCell.append(daysBadge);
+
+      // Gaji
+      const payCell = document.createElement('td');
+      const paySpan = document.createElement('span');
+      const hasPay = Number(item.pay_minor) > 0;
+      paySpan.className = hasPay ? 'pay-highlight' : 'pay-zero';
+      paySpan.textContent = money(item.pay_minor);
+      payCell.append(paySpan);
+
+      row.append(monthCell, hoursCell, daysCell, payCell);
+      rows.append(row);
+    }
+  }
+
+  function showSummary(data) {
+    const t = i18n[currentLang] || i18n.id;
     $('#connect-panel').hidden = true;
     $('#summary-panel').hidden = false;
     $('#summary-panel').classList.add('fade-in');
@@ -182,6 +311,7 @@ export function mount({ document = globalThis.document, window = globalThis.wind
     $('#latest-days').textContent = latestActive ? `${latestActive.teaching_days} ${t.daysUnit}` : t.noMonth;
 
     const years = Array.isArray(data.years) ? [...data.years].sort((a, b) => b.year.localeCompare(a.year)) : [];
+    cachedYears = years;
     const currentYear = years[0];
     $('#latest-year-pay').textContent = currentYear ? money(currentYear.pay_minor) : '—';
     $('#latest-year-hours').textContent = currentYear ? `${currentYear.hours} ${t.hoursUnit}` : '—';
@@ -219,113 +349,138 @@ export function mount({ document = globalThis.document, window = globalThis.wind
         }
       }
     }
+    cachedAllMonths = allMonths;
 
-    if ($('#month-count-pill')) {
-      $('#month-count-pill').textContent = `${allMonths.length} ${t.thMonth} ${t.scrollSuffix}`;
+    // Build Year Filter Pills
+    const filterGroup = $('#year-filter-group');
+    if (filterGroup) {
+      const pills = [
+        `<button type="button" class="year-pill ${activeYearFilter === 'all' ? 'active' : ''}" data-year="all">${t.allYears}</button>`
+      ];
+      for (const yr of [...yearSet].sort((a, b) => b.localeCompare(a))) {
+        pills.push(`<button type="button" class="year-pill ${activeYearFilter === yr ? 'active' : ''}" data-year="${yr}">${yr}</button>`);
+      }
+      filterGroup.innerHTML = pills.join('');
+      filterGroup.querySelectorAll('.year-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+          activeYearFilter = btn.getAttribute('data-year');
+          filterGroup.querySelectorAll('.year-pill').forEach(b => b.classList.toggle('active', b === btn));
+          filterAndRenderMonthRows();
+        });
+      });
     }
 
-    const maxHours = Math.max(1, ...allMonths.map(m => m.hours || 0));
-    const rows = $('#month-rows');
-    rows.replaceChildren();
-    for (const item of allMonths) {
-      const row = document.createElement('tr');
-      const isZero = !item.hours && !Number(item.pay_minor);
-      const isLatest = latestActive && item.month === latestActive.month;
-      if (isLatest) row.className = 'row-current';
-      else if (isZero) row.className = 'row-zero';
+    filterAndRenderMonthRows();
 
-      // Bulan cell
-      const monthCell = document.createElement('td');
-      const monthWrap = document.createElement('div');
-      monthWrap.className = 'cell-month-wrap';
-      const monthName = document.createElement('span');
-      monthName.className = 'month-name';
-      monthName.textContent = monthLabel(item.month, currentLang);
-      monthWrap.append(monthName);
-      if (isLatest) {
-        const currentBadge = document.createElement('span');
-        currentBadge.className = 'badge-mini current';
-        currentBadge.textContent = t.badgeLatest;
-        monthWrap.append(currentBadge);
-      }
-      monthCell.append(monthWrap);
-
-      // Jam cell
-      const hoursCell = document.createElement('td');
-      const hoursWrap = document.createElement('div');
-      hoursWrap.className = 'metric-cell-wrap';
-      const hoursVal = document.createElement('span');
-      hoursVal.className = 'hours-val';
-      hoursVal.textContent = `${item.hours} ${t.hoursUnit}`;
-      hoursWrap.append(hoursVal);
-      if (item.hours > 0) {
-        const barTrack = document.createElement('span');
-        barTrack.className = 'mini-bar-track';
-        const barFill = document.createElement('span');
-        barFill.className = 'mini-bar-fill';
-        barFill.style.width = `${Math.min(100, Math.round((item.hours / maxHours) * 100))}%`;
-        barTrack.append(barFill);
-        hoursWrap.append(barTrack);
-      }
-      hoursCell.append(hoursWrap);
-
-      // Hari cell
-      const daysCell = document.createElement('td');
-      const daysPill = document.createElement('span');
-      daysPill.className = item.teaching_days > 0 ? 'days-pill' : 'days-pill zero';
-      daysPill.textContent = String(item.teaching_days);
-      daysCell.append(daysPill);
-
-      // Gaji cell
-      const payCell = document.createElement('td');
-      const payTag = document.createElement('span');
-      payTag.className = Number(item.pay_minor) > 0 ? 'pay-highlight' : 'pay-zero';
-      payTag.textContent = money(item.pay_minor);
-      payCell.append(payTag);
-
-      row.append(monthCell, hoursCell, daysCell, payCell);
-      rows.append(row);
-    }
-
+    // Year rows
     const yearRows = $('#year-rows');
-    yearRows.replaceChildren();
-    for (const item of years) {
-      const row = document.createElement('tr');
-      const yearCell = document.createElement('td');
-      const strong = document.createElement('strong');
-      strong.textContent = `${t.yearPrefix} ${item.year}`;
-      yearCell.append(strong);
-      const hoursCell = document.createElement('td');
-      hoursCell.textContent = `${item.hours} ${t.hoursUnit}`;
-      const daysCell = document.createElement('td');
-      const daysPill = document.createElement('span');
-      daysPill.className = 'days-pill';
-      daysPill.textContent = String(item.teaching_days);
-      daysCell.append(daysPill);
-      const payCell = document.createElement('td');
-      const payTag = document.createElement('span');
-      payTag.className = 'pay-highlight';
-      payTag.textContent = money(item.pay_minor);
-      payCell.append(payTag);
-      row.append(yearCell, hoursCell, daysCell, payCell);
-      yearRows.append(row);
+    if (yearRows) {
+      yearRows.replaceChildren();
+      for (const item of years) {
+        const row = document.createElement('tr');
+        const yearCell = document.createElement('td');
+        yearCell.textContent = String(item.year);
+        const hoursCell = document.createElement('td');
+        hoursCell.textContent = `${item.hours} ${t.hoursUnit}`;
+        const daysCell = document.createElement('td');
+        const daysBadge = document.createElement('span');
+        daysBadge.className = 'days-pill';
+        daysBadge.textContent = `${item.teaching_days} ${t.daysUnit}`;
+        daysCell.append(daysBadge);
+        const payCell = document.createElement('td');
+        const paySpan = document.createElement('span');
+        paySpan.className = 'pay-highlight';
+        paySpan.textContent = money(item.pay_minor);
+        payCell.append(paySpan);
+        row.append(yearCell, hoursCell, daysCell, payCell);
+        yearRows.append(row);
+      }
     }
   }
 
-  // Setup language toggle buttons
+  // Language setup
   if (document.querySelectorAll) {
     document.querySelectorAll('.lang-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const lang = btn.getAttribute('data-lang');
         if (lang === currentLang) return;
         currentLang = lang;
-        setLang(lang);
+        setCookie('charisna_lang', lang);
         applyStaticTranslations(lang);
         if (cachedData) showSummary(cachedData);
       });
     });
   }
 
+  // Privacy button setup
+  if ($('#privacy-btn')) {
+    $('#privacy-btn').addEventListener('click', () => applyPrivacy(!isPrivacyActive));
+  }
+
+  // Shortcuts modal setup
+  if ($('#shortcuts-btn')) {
+    $('#shortcuts-btn').addEventListener('click', () => toggleShortcuts(true));
+  }
+  if ($('#close-shortcuts-btn')) {
+    $('#close-shortcuts-btn').addEventListener('click', () => toggleShortcuts(false));
+  }
+  const modal = $('#shortcuts-modal');
+  if (modal) {
+    modal.addEventListener('click', e => { if (e.target === modal) toggleShortcuts(false); });
+  }
+
+  // Table search input
+  if ($('#table-search')) {
+    $('#table-search').addEventListener('input', e => {
+      activeSearchQuery = e.target.value;
+      filterAndRenderMonthRows();
+    });
+  }
+
+  // Export CSV functions
+  if ($('#export-monthly-btn')) {
+    $('#export-monthly-btn').addEventListener('click', async () => {
+      const t = i18n[currentLang] || i18n.id;
+      const lines = [`Month,Hours,Days,Pay (USD)`];
+      for (const m of cachedAllMonths) {
+        if (activeYearFilter !== 'all' && !m.month.startsWith(activeYearFilter)) continue;
+        lines.push(`"${monthLabel(m.month, currentLang)}",${m.hours},${m.teaching_days},${(Number(m.pay_minor) / 100).toFixed(2)}`);
+      }
+      try {
+        await navigator.clipboard.writeText(lines.join('\n'));
+        showToast(t.copiedToast);
+      } catch {}
+    });
+  }
+
+  if ($('#export-annual-btn')) {
+    $('#export-annual-btn').addEventListener('click', async () => {
+      const t = i18n[currentLang] || i18n.id;
+      const lines = [`Year,Hours,Days,Pay (USD)`];
+      for (const y of cachedYears) {
+        lines.push(`"${y.year}",${y.hours},${y.teaching_days},${(Number(y.pay_minor) / 100).toFixed(2)}`);
+      }
+      try {
+        await navigator.clipboard.writeText(lines.join('\n'));
+        showToast(t.copiedToast);
+      } catch {}
+    });
+  }
+
+  // Hotkey navigation
+  window.addEventListener('keydown', e => {
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+    if (e.key === '1') window.location.href = '/';
+    if (e.key === '2') window.location.href = '/money';
+    if (e.key === '3') window.location.href = '/pos';
+    if (e.key === '4') window.location.href = '/kost';
+    if (e.key === 's' || e.key === 'S') window.location.href = '/security';
+    if (e.key === 'p' || e.key === 'P') applyPrivacy(!isPrivacyActive);
+    if (e.key === '?') toggleShortcuts();
+    if (e.key === 'Escape') toggleShortcuts(false);
+  });
+
+  applyPrivacy(isPrivacyActive);
   applyStaticTranslations(currentLang);
 
   async function load() {
@@ -333,20 +488,21 @@ export function mount({ document = globalThis.document, window = globalThis.wind
       const response = await fetchImpl('/overview.json', { cache: 'no-store' });
       if (response.status === 423) { window.location.replace('/unlock'); return; }
       if (response.status === 401) { window.location.replace('/login'); return; }
-      if (!response.ok) throw Error('source');
+      if (!response.ok) throw Error('fetch');
       const data = await response.json();
-      if (data.state === 'connected' || data.state === 'stale') showSummary(data);
-      else showConnection(data.state === 'needs_reconnect' ? 'Koneksi MySalary perlu dihubungkan kembali.' : 'Belum terhubung ke MySalary.');
-    } catch {
-      $('#load-status').textContent = 'Ringkasan belum tersedia. Periksa koneksi lalu muat ulang.';
-      const skeleton = $('#skeleton-panel');
-      if (skeleton) skeleton.hidden = true;
-    }
+      cachedData = data;
+      if (data.state === 'needs_reconnect') showConnection('Sesi akun MySalary habis. Hubungkan kembali.');
+      else if (data.state === 'connected' || data.state === 'stale') showSummary(data);
+      else showConnection();
+    } catch { showConnection('Belum dapat membaca ringkasan. Coba beberapa saat lagi.'); }
   }
 
   $('#connect-form').addEventListener('submit', async event => {
-    event.preventDefault(); if (connecting) return;
-    connecting = true; $('#connect-button').disabled = true; $('#connect-status').textContent = 'Menghubungkan…';
+    event.preventDefault();
+    if (connecting) return;
+    connecting = true;
+    $('#connect-button').disabled = true;
+    $('#connect-status').textContent = 'Menghubungkan ke MySalary…';
     const email = $('#source-email').value.trim();
     const password = $('#source-password').value;
     $('#source-password').value = '';

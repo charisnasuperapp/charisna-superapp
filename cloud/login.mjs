@@ -32,6 +32,99 @@ export function createLoginController({fetch:request=globalThis.fetch,now=Date.n
 
 export function mountLogin({document=globalThis.document,window=globalThis.window,fetch=globalThis.fetch,now=Date.now}={}) {
  const $=selector=>document.querySelector(selector);
+
+ function getLang() {
+  try {
+   const m = document.cookie ? document.cookie.match(/(?:^|;\s*)charisna_lang=([a-z]{2})/) : null;
+   return m ? m[1] : 'id';
+  } catch { return 'id'; }
+ }
+ function setLang(lang) {
+  try {
+   document.cookie = `charisna_lang=${lang}; Path=/; SameSite=Lax; Max-Age=31536000`;
+   if (document.documentElement) document.documentElement.lang = lang;
+  } catch {}
+ }
+
+ const i18n = {
+  id: {
+   demoLabel: 'Sumber nyata',
+   eyebrow: 'RUANG PEMILIK · SUMBER NYATA',
+   introTitle: 'Satu ruang.<br>Fokus yang tepat<span class="title-dot">.</span>',
+   introSub: 'Masuk untuk melihat ringkasan MySalary dalam ruang khusus pemilik.',
+   ctxNote: 'MySalary perlu dihubungkan sekali pada browser ini. Gaji mengajar tetap terpisah dari omzet usaha.',
+   sessionNote: 'Tetap masuk di perangkat pribadi. Sesi diperpanjang otomatis dan berakhir setelah 30 hari tidak digunakan. Keluar jika memakai perangkat bersama.',
+   cardEyebrow: 'AKSES KHUSUS PEMILIK',
+   cardTitle: 'Selamat datang kembali',
+   cardDesc: 'Masuk dengan email dan sandi pemilik. Perangkat pribadi akan mengingat sesi Anda.',
+   lblEmail: 'Email pemilik',
+   lblPass: 'Sandi',
+   btnLogin: 'Masuk',
+   summary: 'Belum punya sandi atau lupa sandi?',
+   hint: 'Gunakan tautan pemulihan sekali, lalu atur sandi dari pengaturan keamanan. Buka tautan di peramban yang sama.',
+   privacyNote: 'Akses diverifikasi oleh server. Data MySalary hanya dibaca setelah akun sumber dihubungkan.',
+   footerNote: 'Data MySalary · hanya baca · khusus pemilik'
+  },
+  en: {
+   demoLabel: 'Live source',
+   eyebrow: 'OWNER SPACE · LIVE SOURCE',
+   introTitle: 'One space.<br>The right focus<span class="title-dot">.</span>',
+   introSub: 'Sign in to view your MySalary summary in an owner-only space.',
+   ctxNote: 'MySalary needs to be connected once on this browser. Teaching salary remains separate from business turnover.',
+   sessionNote: 'Stay signed in on personal devices. Sessions refresh automatically and expire after 30 idle days. Log out on shared devices.',
+   cardEyebrow: 'OWNER ACCESS ONLY',
+   cardTitle: 'Welcome back',
+   cardDesc: 'Sign in with owner email and password. Personal devices remember your session.',
+   lblEmail: 'Owner email',
+   lblPass: 'Password',
+   btnLogin: 'Sign In',
+   summary: 'No password or forgot password?',
+   hint: 'Use a one-time recovery link, then set your password in security settings. Open link in this browser.',
+   privacyNote: 'Access verified by server. MySalary data is only read after connecting your source account.',
+   footerNote: 'MySalary data · read-only · owner access'
+  }
+ };
+
+ function applyLang(lang) {
+  const t = i18n[lang] || i18n.id;
+  if ($('#login-demo-label')) $('#login-demo-label').textContent = t.demoLabel;
+  if ($('#login-intro-eyebrow')) $('#login-intro-eyebrow').textContent = t.eyebrow;
+  if ($('#intro-title')) $('#intro-title').innerHTML = t.introTitle;
+  if ($('#login-intro-sub')) $('#login-intro-sub').textContent = t.introSub;
+  if ($('#login-ctx-note')) $('#login-ctx-note').textContent = t.ctxNote;
+  if ($('#login-session-note')) $('#login-session-note').textContent = t.sessionNote;
+  if ($('#login-card-eyebrow')) $('#login-card-eyebrow').textContent = t.cardEyebrow;
+  if ($('#login-title')) $('#login-title').textContent = t.cardTitle;
+  if ($('#login-card-desc')) $('#login-card-desc').textContent = t.cardDesc;
+  if ($('#lbl-owner-email')) $('#lbl-owner-email').textContent = t.lblEmail;
+  if ($('#lbl-password')) $('#lbl-password').textContent = t.lblPass;
+  if ($('#password-login')) $('#password-login').textContent = t.btnLogin;
+  if ($('#login-details-summary')) $('#login-details-summary').textContent = t.summary;
+  if ($('#login-details-hint')) $('#login-details-hint').textContent = t.hint;
+  if ($('#login-privacy-note')) $('#login-privacy-note').textContent = t.privacyNote;
+  if ($('#login-footer-note')) $('#login-footer-note').textContent = t.footerNote;
+
+  if (document.querySelectorAll) {
+   document.querySelectorAll('.lang-btn').forEach(btn => {
+    const active = btn.getAttribute('data-lang') === lang;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+   });
+  }
+ }
+
+ if (document.querySelectorAll) {
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+   btn.addEventListener('click', () => {
+    const chosen = btn.getAttribute('data-lang');
+    setLang(chosen);
+    applyLang(chosen);
+   });
+  });
+ }
+
+ applyLang(getLang());
+
  function render(state){
   $('#password-login').disabled=state.busy;
   $('#password-form').setAttribute('aria-busy',String(state.busy));
@@ -55,4 +148,4 @@ export function mountLogin({document=globalThis.document,window=globalThis.windo
  render(controller.state);
  return controller;
 }
-if(typeof document!=='undefined')mountLogin();
+if(typeof document!=='undefined'&&document.querySelector)mountLogin();

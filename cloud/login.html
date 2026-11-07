@@ -3,20 +3,20 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>Masuk Pemilik — CHARISNA</title><link rel="stylesheet" href="/styles.css"><script type="module" src="/login.mjs"></script></head>
 <body class="login-page">
 <a class="skip" href="#main">Lewati ke halaman masuk</a>
-<header class="topbar"><a class="brand" href="/login" aria-label="CHARISNA SuperApp, masuk pemilik"><span class="brand-mark" aria-hidden="true">C</span><span>CHARISNA <small>SUPERAPP</small></span></a><span class="demo-label">Sumber nyata</span></header>
+<header class="topbar"><a class="brand" href="/login" aria-label="CHARISNA SuperApp, masuk pemilik"><span class="brand-mark" aria-hidden="true">C</span><span>CHARISNA <small>SUPERAPP</small></span></a><div class="identity"><div class="lang-switch" role="group" aria-label="Bahasa / Language"><button type="button" class="lang-btn active" data-lang="id">ID</button><button type="button" class="lang-btn" data-lang="en">EN</button></div><span class="demo-label" id="login-demo-label">Sumber nyata</span></div></header>
 <main id="main" class="login-main">
-<section class="login-intro" aria-labelledby="intro-title"><p class="eyebrow">RUANG PEMILIK · SUMBER NYATA</p><h1 id="intro-title">Satu ruang.<br>Fokus yang tepat<span class="title-dot">.</span></h1><p class="subtitle">Masuk untuk melihat ringkasan MySalary dalam ruang khusus pemilik.</p><div class="login-context"><span class="note-icon" aria-hidden="true">i</span><p>MySalary perlu dihubungkan sekali pada browser ini. Gaji mengajar tetap terpisah dari omzet usaha.</p></div><p class="login-session">Tetap masuk di perangkat pribadi. Sesi diperpanjang otomatis dan berakhir setelah 30 hari tidak digunakan. Keluar jika memakai perangkat bersama.</p></section>
-<section class="login-card" aria-labelledby="login-title"><p class="eyebrow">AKSES KHUSUS PEMILIK</p><h2 id="login-title">Selamat datang kembali</h2><p class="login-description">Masuk dengan email dan sandi pemilik. Perangkat pribadi akan mengingat sesi Anda.</p>
+<section class="login-intro" aria-labelledby="intro-title"><p class="eyebrow" id="login-intro-eyebrow">RUANG PEMILIK · SUMBER NYATA</p><h1 id="intro-title">Satu ruang.<br>Fokus yang tepat<span class="title-dot">.</span></h1><p class="subtitle" id="login-intro-sub">Masuk untuk melihat ringkasan MySalary dalam ruang khusus pemilik.</p><div class="login-context"><span class="note-icon" aria-hidden="true">i</span><p id="login-ctx-note">MySalary perlu dihubungkan sekali pada browser ini. Gaji mengajar tetap terpisah dari omzet usaha.</p></div><p class="login-session" id="login-session-note">Tetap masuk di perangkat pribadi. Sesi diperpanjang otomatis dan berakhir setelah 30 hari tidak digunakan. Keluar jika memakai perangkat bersama.</p></section>
+<section class="login-card" aria-labelledby="login-title"><p class="eyebrow" id="login-card-eyebrow">AKSES KHUSUS PEMILIK</p><h2 id="login-title">Selamat datang kembali</h2><p class="login-description" id="login-card-desc">Masuk dengan email dan sandi pemilik. Perangkat pribadi akan mengingat sesi Anda.</p>
 <form id="password-form" action="/auth/login" method="post">
-<label for="owner-email">Email pemilik</label><input id="owner-email" name="email" type="email" autocomplete="username" value="charisna.superapp@gmail.com" readonly required>
-<label for="password">Sandi</label><input id="password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="256" required>
+<label for="owner-email" id="lbl-owner-email">Email pemilik</label><input id="owner-email" name="email" type="email" autocomplete="username" value="charisna.superapp@gmail.com" readonly required>
+<label for="password" id="lbl-password">Sandi</label><input id="password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="256" required>
 <button id="password-login" class="button primary" type="submit" disabled>Masuk</button>
 </form>
-<details><summary>Belum punya sandi atau lupa sandi?</summary><p class="field-hint">Gunakan tautan pemulihan sekali, lalu atur sandi dari pengaturan keamanan. Buka tautan di peramban yang sama.</p>
+<details><summary id="login-details-summary">Belum punya sandi atau lupa sandi?</summary><p class="field-hint" id="login-details-hint">Gunakan tautan pemulihan sekali, lalu atur sandi dari pengaturan keamanan. Buka tautan di peramban yang sama.</p>
 <form id="send-link-form" action="/auth/send-link" method="post"><button id="send-link" class="button primary" type="submit" disabled>Kirim tautan masuk</button><p id="send-cooldown" class="field-hint">Tautan hanya dikirim ke email pemilik terdaftar.</p></form></details>
 <p id="login-status" class="login-status" role="status" aria-live="polite" aria-atomic="true"></p><p id="login-error" class="login-error" role="alert" aria-atomic="true"></p>
 <noscript><p>Aktifkan JavaScript untuk masuk dengan aman. Tautan hanya dikirim ke email pemilik terdaftar.</p></noscript>
-<p class="login-privacy">Akses diverifikasi oleh server. Data MySalary hanya dibaca setelah akun sumber dihubungkan.</p>
+<p class="login-privacy" id="login-privacy-note">Akses diverifikasi oleh server. Data MySalary hanya dibaca setelah akun sumber dihubungkan.</p>
 </section>
-<footer><span>CHARISNA SuperApp</span><span>Data MySalary · hanya baca · khusus pemilik</span></footer>
+<footer><span>CHARISNA SuperApp</span><span id="login-footer-note">Data MySalary · hanya baca · khusus pemilik</span></footer>
 </main></body></html>

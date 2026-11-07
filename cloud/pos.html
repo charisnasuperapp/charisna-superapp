@@ -1,15 +1,78 @@
 <!doctype html>
-<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bumi Makmur POS · CHARISNA</title><link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/money.css"><script type="module" src="/pos.mjs"></script></head>
-<body><a class="skip" href="#main">Lewati ke ringkasan</a><header class="topbar"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true">C</span><span>CHARISNA <small>SUPERAPP</small></span></a><div class="identity"><div class="lang-switch" role="group" aria-label="Bahasa / Language"><button type="button" class="lang-btn active" data-lang="id">ID</button><button type="button" class="lang-btn" data-lang="en">EN</button></div><span class="role">Pemilik</span><a class="button secondary" href="/security">Keamanan</a></div></header>
-<main id="main" class="live-main"><nav class="source-tabs" aria-label="Sumber data"><a class="button secondary" href="/">Teaching Pay Audit</a><a class="button secondary" href="/money">Money Management</a><a class="button primary" href="/pos" aria-current="page">Bumi Makmur POS</a><a class="button secondary" href="/kost">CHARISNA KOST</a></nav><div class="page-heading"><div><p class="eyebrow">BERANDA PEMILIK</p><h1>Bumi Makmur POS<span class="title-dot">.</span></h1><p class="subtitle">Ringkasan usaha per cabang, bulan berjalan.</p></div></div>
-<div class="demo-note"><span class="note-icon" aria-hidden="true">i</span><p>Omzet bersih memperhitungkan refund dan transaksi batal. Laba adalah perkiraan setelah HPP dan beban tercatat; bukan saldo kas.</p></div><p id="pos-status" role="status" class="field-hint" style="margin-bottom:14px">Memuat ringkasan…</p>
-<div id="pos-skeleton" class="skeleton-panel businesses" aria-hidden="true">
-  <div class="section-heading"><span class="skeleton skeleton-title" style="width:200px"></span><span class="skeleton skeleton-badge"></span></div>
-  <div class="business-grid live-stats">
-    <div class="business-card"><span class="skeleton skeleton-title" style="width:140px;height:18px"></span><span class="skeleton skeleton-text" style="width:110px"></span><span class="skeleton skeleton-value" style="width:70%"></span><span class="skeleton skeleton-text" style="width:90px"></span><span class="skeleton skeleton-value" style="width:40%"></span></div>
-    <div class="business-card"><span class="skeleton skeleton-title" style="width:140px;height:18px"></span><span class="skeleton skeleton-text" style="width:110px"></span><span class="skeleton skeleton-value" style="width:70%"></span><span class="skeleton skeleton-text" style="width:90px"></span><span class="skeleton skeleton-value" style="width:40%"></span></div>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Bumi Makmur POS · CHARISNA</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/money.css">
+  <script type="module" src="/pos.mjs"></script>
+</head>
+<body>
+<a class="skip" href="#main">Lewati ke ringkasan</a>
+<header class="topbar">
+  <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">C</span><span>CHARISNA <small>SUPERAPP</small></span></a>
+  <div class="identity">
+    <button type="button" class="privacy-toggle-btn" id="privacy-btn" aria-pressed="false" title="Tekan P untuk sensor saldo">
+      <span aria-hidden="true">👁</span> <span id="privacy-lbl">Privasi</span>
+    </button>
+    <div class="lang-switch" role="group" aria-label="Bahasa / Language">
+      <button type="button" class="lang-btn active" data-lang="id">ID</button>
+      <button type="button" class="lang-btn" data-lang="en">EN</button>
+    </div>
+    <span class="role" id="topbar-role">Pemilik</span>
+    <a class="button secondary" href="/security" id="nav-security">Keamanan</a>
   </div>
-</div>
-<section id="pos-connect" class="login-card live-panel" hidden aria-labelledby="pos-connect-title"><p class="eyebrow">SAMBUNGKAN SUMBER</p><h2 id="pos-connect-title">Hubungkan Bumi Makmur POS</h2><p>Buat kode di sini. Masukkan kode di POS pada Pengaturan Sistem → CHARISNA SuperApp. Gunakan akun Owner saat cloud sudah sinkron.</p><button id="pos-pair" class="button primary" type="button">Buat kode penghubung</button><p id="pos-code" role="status" aria-live="polite"></p><p class="scope-note">Kode berlaku 10 menit. Detail transaksi dan kredensial Firebase tidak dikirim.</p></section>
-<section id="pos-summary" class="businesses" hidden aria-labelledby="pos-summary-title"><div class="section-heading"><h2 id="pos-summary-title">Cabang Bumi Makmur</h2><span id="pos-quality" class="badge"></span></div><p id="pos-month" class="scope-note"></p><div id="pos-branches" class="business-grid live-stats"></div><p id="pos-time" class="scope-note"></p><p class="scope-note">Saat POS ditutup, ringkasan terakhir tetap terlihat. Buka POS dan tunggu sinkronisasi cloud untuk memperbarui angka.</p><button id="pos-disconnect" class="button secondary" type="button">Putuskan POS dan hapus ringkasan</button></section>
-<footer><span>CHARISNA SuperApp</span><span>Ringkasan tersimpan · khusus pemilik</span></footer></main></body></html>
+</header>
+<main id="main" class="live-main">
+  <nav class="source-tabs" aria-label="Sumber data">
+    <a class="button secondary" href="/" id="tab-teaching">Teaching Pay Audit</a>
+    <a class="button secondary" href="/money" id="tab-money">Money Management</a>
+    <a class="button primary" href="/pos" aria-current="page" id="tab-pos">Bumi Makmur POS</a>
+    <a class="button secondary" href="/kost" id="tab-kost">CHARISNA KOST</a>
+  </nav>
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow" id="page-eyebrow">BERANDA PEMILIK</p>
+      <h1>Bumi Makmur POS<span class="title-dot">.</span></h1>
+      <p class="subtitle" id="page-subtitle">Ringkasan usaha per cabang, bulan berjalan.</p>
+    </div>
+  </div>
+  <div class="demo-note">
+    <span class="note-icon" aria-hidden="true">i</span>
+    <p id="demo-note-text">Omzet bersih memperhitungkan refund dan transaksi batal. Laba adalah perkiraan setelah HPP dan beban tercatat; bukan saldo kas.</p>
+  </div>
+  <p id="pos-status" role="status" class="field-hint" style="margin-bottom:14px">Memuat ringkasan…</p>
+  <div id="pos-skeleton" class="skeleton-panel businesses" aria-hidden="true">
+    <div class="section-heading"><span class="skeleton skeleton-title" style="width:200px"></span><span class="skeleton skeleton-badge"></span></div>
+    <div class="business-grid live-stats">
+      <div class="business-card"><span class="skeleton skeleton-title" style="width:140px;height:18px"></span><span class="skeleton skeleton-text" style="width:110px"></span><span class="skeleton skeleton-value" style="width:70%"></span><span class="skeleton skeleton-text" style="width:90px"></span><span class="skeleton skeleton-value" style="width:40%"></span></div>
+      <div class="business-card"><span class="skeleton skeleton-title" style="width:140px;height:18px"></span><span class="skeleton skeleton-text" style="width:110px"></span><span class="skeleton skeleton-value" style="width:70%"></span><span class="skeleton skeleton-text" style="width:90px"></span><span class="skeleton skeleton-value" style="width:40%"></span></div>
+    </div>
+  </div>
+  <section id="pos-connect" class="login-card live-panel" hidden aria-labelledby="pos-connect-title">
+    <p class="eyebrow" id="pos-connect-eyebrow">SAMBUNGKAN SUMBER</p>
+    <h2 id="pos-connect-title">Hubungkan Bumi Makmur POS</h2>
+    <p id="pos-connect-desc">Buat kode di sini. Masukkan kode di POS pada Pengaturan Sistem → CHARISNA SuperApp. Gunakan akun Owner saat cloud sudah sinkron.</p>
+    <button id="pos-pair" class="button primary" type="button">Buat kode penghubung</button>
+    <p id="pos-code" role="status" aria-live="polite"></p>
+    <p class="scope-note" id="pos-connect-note">Kode berlaku 10 menit. Detail transaksi dan kredensial Firebase tidak dikirim.</p>
+  </section>
+  <section id="pos-summary" class="businesses" hidden aria-labelledby="pos-summary-title">
+    <div class="section-heading">
+      <h2 id="pos-summary-title">Cabang Bumi Makmur</h2>
+      <span id="pos-quality" class="badge"></span>
+    </div>
+    <p id="pos-month" class="scope-note"></p>
+    <div id="pos-branches" class="business-grid live-stats"></div>
+    <p id="pos-time" class="scope-note"></p>
+    <p class="scope-note" id="pos-footer-note">Saat POS ditutup, ringkasan terakhir tetap terlihat. Buka POS dan tunggu sinkronisasi cloud untuk memperbarui angka.</p>
+    <button id="pos-disconnect" class="button secondary" type="button">Putuskan POS dan hapus ringkasan</button>
+  </section>
+  <footer>
+    <span>CHARISNA SuperApp</span>
+    <span id="footer-note">Ringkasan tersimpan · khusus pemilik</span>
+  </footer>
+</main>
+</body>
+</html>
