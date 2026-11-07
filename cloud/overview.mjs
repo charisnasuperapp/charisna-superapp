@@ -4,6 +4,12 @@ const post = body => ({ method: 'POST', headers: { 'Content-Type': 'application/
 
 export function mount({ document = globalThis.document, window = globalThis.window, fetchImpl = globalThis.fetch } = {}) {
   const $ = selector => document.querySelector(selector);
+  if (document.createElement && $('.page-heading')) {
+    const nav = document.createElement('nav'); nav.className = 'source-tabs'; nav.setAttribute('aria-label', 'Sumber data');
+    const teaching = document.createElement('a'); teaching.href = '/'; teaching.className = 'button primary'; teaching.setAttribute('aria-current', 'page'); teaching.textContent = 'Teaching Pay Audit';
+    const moneyTab = document.createElement('a'); moneyTab.href = '/money'; moneyTab.className = 'button secondary'; moneyTab.textContent = 'Money Management';
+    nav.append(teaching, moneyTab); $('.page-heading').before(nav);
+  }
   let connecting = false;
   function showConnection(message = '') {
     $('#summary-panel').hidden = true;

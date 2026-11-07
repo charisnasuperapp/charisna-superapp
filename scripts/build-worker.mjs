@@ -4,7 +4,9 @@ import {readFile, writeFile} from 'node:fs/promises';
 const files = [
   './overview.html',
   './overview.mjs',
+  './money.html', './money-ui.mjs',
   '../public/styles.css',
+  '../public/money.css',
   './login.html',
   './login.mjs', './security.html', './unlock.html', './device.mjs'
 ];

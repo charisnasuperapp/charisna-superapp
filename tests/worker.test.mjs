@@ -72,11 +72,11 @@ test('Wrangler configuration binds only the approved D1 Free database and cron',
 });
 
 const sourceFiles = [
-  './overview.html', './overview.mjs', '../public/styles.css',
+  './overview.html', './overview.mjs', './money.html', './money-ui.mjs', '../public/styles.css', '../public/money.css',
   './login.html', './login.mjs', './security.html', './unlock.html', './device.mjs'
 ];
 
-test('asset build embeds exactly the five explicit UI sources, byte for byte', async () => {
+test('asset build embeds only explicit UI sources, byte for byte', async () => {
   const result = spawnSync(process.execPath, ['scripts/build-worker.mjs'], {cwd: root, encoding: 'utf8'});
   assert.equal(result.status, 0, `Asset build failed: ${result.stderr}`);
   const {assets, loadAsset} = await import(`../cloud/assets.mjs?test=${Date.now()}`);
