@@ -1,6 +1,6 @@
 # Money Management connector
 
-Status: code and tests ready; production pairing requires both deployments and an unlocked source vault.
+Status (2026-11-07): production web source and Worker are deployed and paired. Owner verified two financial profiles in the Money Management tab. A later source cloud sync (vault version 222) refreshed the SuperApp snapshot at 22:38 WIB. Android debug APK built and published; device runtime remains unverified.
 
 ## Owner flow
 
