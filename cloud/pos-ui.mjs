@@ -6,8 +6,10 @@ async function load(){
   try{
     const res=await fetch('/pos/overview.json',{cache:'no-store'});guard(res);if(!res.ok)throw Error();
     const data=await res.json();$('pos-status').hidden=true;
+    const sk=$('pos-skeleton');if(sk)sk.hidden=true;
     const connected=['connected','stale'].includes(data.state);
     $('pos-connect').hidden=connected;$('pos-summary').hidden=!connected;
+    if(connected)$('pos-summary').classList.add('fade-in');else $('pos-connect').classList.add('fade-in');
     if(!connected){$('pos-code').textContent=data.state==='needs_reconnect'?'Koneksi perlu dibuat ulang.':'Belum terhubung.';return;}
     $('pos-quality').textContent=data.state==='stale'?'Data tertunda':'Ringkasan tersimpan';
     $('pos-quality').className=`badge ${data.state==='stale'?'stale':'verified'}`;
@@ -24,7 +26,10 @@ async function load(){
       return card;
     });
     $('pos-branches').replaceChildren(...cards);
-  }catch{$('pos-status').hidden=false;$('pos-status').textContent='Ringkasan belum tersedia. Coba muat ulang.';}
+  }catch{
+    $('pos-status').hidden=false;$('pos-status').textContent='Ringkasan belum tersedia. Coba muat ulang.';
+    const sk=$('pos-skeleton');if(sk)sk.hidden=true;
+  }
 }
 $('pos-pair').addEventListener('click',async()=>{
   $('pos-pair').disabled=true;

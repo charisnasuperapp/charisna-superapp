@@ -16,13 +16,19 @@ export function mount({ document = globalThis.document, window = globalThis.wind
   function showConnection(message = '') {
     $('#summary-panel').hidden = true;
     $('#connect-panel').hidden = false;
+    $('#connect-panel').classList.add('fade-in');
     $('#connect-status').textContent = message;
     $('#load-status').hidden = true;
+    const skeleton = $('#skeleton-panel');
+    if (skeleton) skeleton.hidden = true;
   }
   function showSummary(data) {
     $('#connect-panel').hidden = true;
     $('#summary-panel').hidden = false;
+    $('#summary-panel').classList.add('fade-in');
     $('#load-status').hidden = true;
+    const skeleton = $('#skeleton-panel');
+    if (skeleton) skeleton.hidden = true;
     const months = Array.isArray(data.months) ? [...data.months].sort((a, b) => b.month.localeCompare(a.month)) : [];
     const current = months[0];
     $('#period').textContent = current ? monthLabel(current.month) : 'Belum ada bulan tercatat';
@@ -65,7 +71,11 @@ export function mount({ document = globalThis.document, window = globalThis.wind
       const data = await response.json();
       if (data.state === 'connected' || data.state === 'stale') showSummary(data);
       else showConnection(data.state === 'needs_reconnect' ? 'Koneksi MySalary perlu dihubungkan kembali.' : 'Belum terhubung ke MySalary.');
-    } catch { $('#load-status').textContent = 'Ringkasan belum tersedia. Periksa koneksi lalu muat ulang.'; }
+    } catch {
+      $('#load-status').textContent = 'Ringkasan belum tersedia. Periksa koneksi lalu muat ulang.';
+      const skeleton = $('#skeleton-panel');
+      if (skeleton) skeleton.hidden = true;
+    }
   }
   $('#connect-form').addEventListener('submit', async event => {
     event.preventDefault(); if (connecting) return;

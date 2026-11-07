@@ -6,8 +6,10 @@ async function load(){
   try{
     const res=await fetch('/money/overview.json',{cache:'no-store'});go(res);if(!res.ok)throw Error();
     const data=await res.json();$('money-status').hidden=true;
+    const sk=$('money-skeleton');if(sk)sk.hidden=true;
     const connected=['connected','stale'].includes(data.state);
     $('money-connect').hidden=connected;$('money-summary').hidden=!connected;
+    if(connected)$('money-summary').classList.add('fade-in');else $('money-connect').classList.add('fade-in');
     if(!connected){$('money-code').textContent=data.state==='needs_reconnect'?'Koneksi perlu dibuat ulang.':'Belum terhubung.';return;}
     $('money-quality').textContent=data.state==='stale'?'Data tertunda':'Ringkasan tersimpan';
     $('money-quality').className=`badge ${data.state==='stale'?'stale':'verified'}`;
@@ -24,7 +26,10 @@ async function load(){
       return article;
     });
     $('money-profiles').replaceChildren(...cards);
-  }catch{$('money-status').textContent='Ringkasan belum tersedia. Coba muat ulang.';}
+  }catch{
+    $('money-status').textContent='Ringkasan belum tersedia. Coba muat ulang.';
+    const sk=$('money-skeleton');if(sk)sk.hidden=true;
+  }
 }
 $('money-pair').addEventListener('click',async()=>{
   $('money-pair').disabled=true;

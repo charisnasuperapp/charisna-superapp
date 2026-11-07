@@ -1,1 +1,66 @@
-.source-tabs{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 30px}.source-tabs a{text-decoration:none;display:inline-flex;align-items:center}.money-amount{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;margin:3px 0 16px}.business-card h3{font-size:17px;margin:0 0 17px}.business-card .metric-label{margin:10px 0 0}.business-card .scope-note{font-size:12px;color:#8c6014}#money-code{font-size:18px;font-weight:700;letter-spacing:.08em;overflow-wrap:anywhere}
+.source-tabs{
+  display:inline-flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin:0 0 32px;
+  background:#edf3ee;
+  border:1px solid var(--line);
+  padding:5px;
+  border-radius:14px;
+}
+.source-tabs a{
+  text-decoration:none;
+  display:inline-flex;
+  align-items:center;
+  padding:8px 16px;
+  border-radius:10px;
+  font-size:13px;
+  font-weight:600;
+  color:var(--muted);
+  border:1px solid transparent;
+  background:transparent;
+  box-shadow:none;
+  transition:all 0.16s cubic-bezier(0.2,0.8,0.2,1);
+}
+.source-tabs a:hover:not([aria-current="page"]){
+  color:var(--ink);
+  background:rgba(255,255,255,0.65);
+}
+.source-tabs a[aria-current="page"],
+.source-tabs a.primary{
+  background:var(--white);
+  color:var(--teal);
+  border-color:var(--line);
+  box-shadow:0 2px 6px rgba(20,40,38,0.06);
+}
+.money-amount{
+  font-size:21px;
+  font-weight:600;
+  font-variant-numeric:tabular-nums;
+  overflow-wrap:anywhere;
+  margin:4px 0 16px;
+  color:var(--ink);
+  letter-spacing:-0.3px;
+}
+.business-card h3{
+  font-size:17px;
+  margin:0 0 16px;
+  letter-spacing:-0.2px;
+  color:var(--ink);
+}
+.business-card .metric-label{margin:10px 0 0}
+.business-card .scope-note{font-size:12px;color:var(--amber)}
+#money-code,#pos-code,#kost-code{
+  font-size:18px;
+  font-weight:700;
+  letter-spacing:0.08em;
+  overflow-wrap:anywhere;
+  padding:12px 16px;
+  background:var(--teal-surface);
+  border:1px dashed var(--teal-border);
+  border-radius:var(--radius-sm);
+  color:var(--teal);
+  display:inline-block;
+  margin:14px 0;
+}
+#money-code:empty,#pos-code:empty,#kost-code:empty{display:none}

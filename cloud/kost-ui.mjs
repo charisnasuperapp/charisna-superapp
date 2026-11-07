@@ -6,8 +6,10 @@ async function load(){
   try{
     const res=await fetch('/kost/overview.json',{cache:'no-store'});guard(res);if(!res.ok)throw Error();
     const data=await res.json();$('kost-status').hidden=true;
+    const sk=$('kost-skeleton');if(sk)sk.hidden=true;
     const connected=['connected','stale'].includes(data.state);
     $('kost-connect').hidden=connected;$('kost-summary').hidden=!connected;
+    if(connected)$('kost-summary').classList.add('fade-in');else $('kost-connect').classList.add('fade-in');
     if(!connected){$('kost-properties').replaceChildren();$('kost-code').textContent=data.state==='needs_reconnect'?'Koneksi perlu dibuat ulang.':'Belum terhubung.';return;}
     const isDemo=data.snapshot.is_demo===true;
     $('kost-quality').textContent=isDemo?data.state==='stale'?'Data contoh · tertunda':'Data contoh':data.state==='stale'?'Data tertunda':'Snapshot lokal';
@@ -27,7 +29,10 @@ async function load(){
       return card;
     });
     $('kost-properties').replaceChildren(...cards);
-  }catch{$('kost-summary').hidden=true;$('kost-properties').replaceChildren();$('kost-demo-note').hidden=true;$('kost-status').hidden=false;$('kost-status').textContent='Ringkasan belum tersedia. Coba muat ulang.';}
+  }catch{
+    $('kost-summary').hidden=true;$('kost-properties').replaceChildren();$('kost-demo-note').hidden=true;$('kost-status').hidden=false;$('kost-status').textContent='Ringkasan belum tersedia. Coba muat ulang.';
+    const sk=$('kost-skeleton');if(sk)sk.hidden=true;
+  }
 }
 $('kost-pair').addEventListener('click',async()=>{
   $('kost-pair').disabled=true;
