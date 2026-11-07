@@ -96,7 +96,7 @@ Buka `http://127.0.0.1:4173`. Tes: `npm test`; syntax: `npm run check`; lab: `np
 ## Update 2026-11-07: login magic link (PKCE)
 - Login OTP kode diganti magic link Supabase (PKCE). Endpoint: POST /auth/send-link, GET /auth/callback. Tautan harus dibuka di peramban yang sama dengan yang meminta (verifier PKCE ada di cookie __Host-charisna-pkce).
 - Worker live: https://zen.charisna-superapp.workers.dev. Secret Wrangler sudah diset (SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, OWNER_EMAIL, SESSION_SECRET, SITE_ORIGIN).
-- Manual: tambahkan https://zen.charisna-superapp.workers.dev/auth/callback ke Supabase Auth > URL Configuration (Redirect URLs) dan set Site URL ke origin yang sama.
+- ~~Manual: tambahkan https://zen.charisna-superapp.workers.dev/auth/callback ke Supabase Auth > URL Configuration (Redirect URLs) dan set Site URL ke origin yang sama.~~ **Selesai 7 Nov 2026**: Site URL dan Redirect URLs Supabase (project `fepsonesdfuyycdlbsav`) sudah diupdate via dashboard — Site URL = `https://zen.charisna-superapp.workers.dev`, Redirect URLs memuat callback `zen` (callback lama worker lama dipertahankan, Total URLs: 2). Magic-link pemulihan sandi dari `zen` kini valid.
 - Pilihan magic link adalah asumsi agen; batas email Supabase Free 2/jam.
 
 > Handoff terbaru dan hasil verifikasi live 7 Nov 2026: `docs/HANDOFF_OPENAI_2026-11-07.md`.
