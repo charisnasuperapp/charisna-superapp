@@ -12,10 +12,13 @@ const headers={
  'Permissions-Policy':'camera=(), microphone=(), geolocation=()',
  'Strict-Transport-Security':'max-age=31536000'
 };
+assets.set('/security',['./security.html','text/html; charset=utf-8']);
+assets.set('/unlock',['./unlock.html','text/html; charset=utf-8']);
+assets.set('/device.mjs',['./device.mjs','text/javascript; charset=utf-8']);
 assets.set('/login',['./login.html','text/html; charset=utf-8']);
 assets.set('/login.mjs',['./login.mjs','text/javascript; charset=utf-8']);
 const publicPaths=new Set(['/login','/login.mjs','/styles.css']);
-const authPaths=new Set(['/auth/send-link','/auth/logout']);
+const authPaths=new Set(['/auth/send-link','/auth/logout','/auth/login','/auth/password']);
 const connectorPaths=new Set(['/connector/connect','/connector/disconnect']);
 const SIGNAL_PATH='/connector/signal';
 const DEFAULT_SIGNAL_ORIGIN='https://www.mysalary.my.id';
@@ -35,15 +38,15 @@ async function readJson(req,maxBytes=2048){
  }catch{return {error:400};}finally{reader.releaseLock();}
 }
 
-export function createCloudHandler({env=process.env,auth,teaching,assetLoader=async()=>{throw Error('Missing asset loader');},now=()=>Date.now()}={}){
+export function createCloudHandler({env=process.env,auth,teaching,passkeys,assetLoader=async()=>{throw Error('Missing asset loader');},now=()=>Date.now()}={}){
  let siteOrigin;
  try{const site=new URL(env.SITE_ORIGIN);if(site.protocol==='https:'&&site.origin===env.SITE_ORIGIN&&!site.username&&!site.password)siteOrigin=site.origin;}catch{/* Fail closed. */}
  // Instance-local friction, not a distributed rate limiter.
- let sendAfter=0,verifyWindow=0,verifyAttempts=0,signalWindow=0,signalCount=0;
+ let loginWindow=0,loginFailures=0,sendAfter=0,verifyWindow=0,verifyAttempts=0,signalWindow=0,signalCount=0;
  // The only cross-origin caller allowed: the MySalary web app. CORS is a browser rule, not authentication; the Firebase ID token is.
  const signalOrigin=env.TEACHING_SIGNAL_ORIGIN??DEFAULT_SIGNAL_ORIGIN;
  const cors=origin=>({'Access-Control-Allow-Origin':origin,'Vary':'Origin'});
- async function respondTo(req){
+ async function respondTo(req,ctx={}){
   try{
    const url=new URL(req.url);const path=url.pathname;
    if(!siteOrigin)return respond(503,{error:'Akses pemilik belum dikonfigurasi.'});
@@ -72,9 +75,48 @@ export function createCloudHandler({env=process.env,auth,teaching,assetLoader=as
       return respond(result.status,result.body,result.cookie?{'Set-Cookie':result.cookie}:{});
      }
      if(!auth?.configured)return respond(503,{error:'Akses pemilik belum dikonfigurasi.'});
+     if(path==='/auth/login'){
+      if(Object.keys(parsed.value).join(',')!=='password'||typeof parsed.value.password!=='string')return respond(400,{error:'Permintaan tidak valid.'});
+      // Instance-local friction against guessing; Supabase applies its own limits as well.
+      if(now()>=loginWindow){loginWindow=now()+900000;loginFailures=0;}
+      if(loginFailures>=5)return respond(429,{error:'Terlalu banyak percobaan. Coba lagi nanti.'},{'Retry-After':String(Math.max(1,Math.ceil((loginWindow-now())/1000)))});
+      const result=await auth.signInPassword(parsed.value.password);
+      if(result.status===200)loginFailures=0;else if(result.status===401||result.status===403)loginFailures++;
+      return respond(result.status,result.body,result.cookie?{'Set-Cookie':result.cookie}:{});
+     }
+     if(path==='/auth/password'){
+      if(Object.keys(parsed.value).join(',')!=='password'||typeof parsed.value.password!=='string')return respond(400,{error:'Permintaan tidak valid.'});
+      const result=await auth.setPassword({headers:Object.fromEntries(req.headers)},parsed.value.password);
+      return respond(result.status,result.body,result.cookie?{'Set-Cookie':result.cookie}:{});
+     }
      if(Object.keys(parsed.value).length)return respond(400,{error:'Permintaan tidak valid.'});
      if(now()<sendAfter)return respond(429,{error:'Tunggu sebelum meminta tautan lagi.'},{'Retry-After':String(Math.ceil((sendAfter-now())/1000))});
      sendAfter=now()+60000;const result=await auth.sendLink();
+     return respond(result.status,result.body,result.cookie?{'Set-Cookie':result.cookie}:{});
+    }
+    if(path.startsWith('/auth/passkeys/')){
+     const action=path.slice('/auth/passkeys/'.length);
+     if(!['status','register-options','register','authenticate-options','authenticate','revoke'].includes(action))return respond(404,{error:'Tidak ditemukan.'});
+     if(req.method!=='POST')return respond(405,{error:'Metode tidak diizinkan.'},{Allow:'POST'});
+     if(req.headers.get('origin')!==siteOrigin||req.headers.get('sec-fetch-site')==='cross-site')return respond(403,{error:'Asal permintaan ditolak.'});
+     if(!auth?.configured)return respond(503,{error:'Akses pemilik belum dikonfigurasi.'});
+     const identityOnly=['authenticate-options','authenticate'].includes(action);
+     const owner=await auth[identityOnly?'authorizeIdentity':'authorize']({headers:Object.fromEntries(req.headers)});
+     ctx.cookie=owner.cookie;
+     if(owner.status!==200)return respond(owner.status,owner.body);
+     if(!passkeys?.configured)return respond(503,{error:'Kunci perangkat belum tersedia.'});
+     const parsed=await readJson(req,32768);if(parsed.error)return respond(parsed.error,{error:'Permintaan tidak valid.'});
+     if(!['register','authenticate'].includes(action)&&Object.keys(parsed.value).length)return respond(400,{error:'Permintaan tidak valid.'});
+     const methods={'status':'status','register-options':'registrationOptions','register':'verifyRegistration','authenticate-options':'authenticationOptions','authenticate':'verifyAuthentication','revoke':'revoke'};
+     const result=await passkeys[methods[action]](owner.user,Object.fromEntries(req.headers),parsed.value);
+     if(result.status===200&&['register','authenticate','revoke'].includes(action)){
+      // Use renewed session when identity resolution rotated a Supabase refresh token.
+      const original=Object.fromEntries(req.headers);
+      if(owner.cookie)original.cookie=owner.cookie.split(';',1)[0];
+      const update=await auth[action==='register'?'enableDeviceLock':action==='authenticate'?'unlockDevice':'disableDeviceLock']({headers:original});
+      ctx.cookie=update.cookie??ctx.cookie;
+      return respond(update.status,update.body,result.cookie?{'Set-Cookie':result.cookie}:{});
+     }
      return respond(result.status,result.body,result.cookie?{'Set-Cookie':result.cookie}:{});
     }
     if(path===SIGNAL_PATH){
@@ -98,6 +140,7 @@ export function createCloudHandler({env=process.env,auth,teaching,assetLoader=as
      if(!auth?.configured)return respond(503,{error:'Akses pemilik belum dikonfigurasi.'});
      const owner=await auth.authorize({headers:Object.fromEntries(req.headers)});
      if(owner.status!==200)return respond(owner.status,owner.body);
+     ctx.cookie=owner.cookie;
      if(!teaching?.configured)return respond(503,{error:'Konektor belum dikonfigurasi.'});
      const parsed=await readJson(req,path==='/connector/connect'?8192:2048);
      if(parsed.error)return respond(parsed.error,{error:'Permintaan tidak valid.'});
@@ -111,11 +154,14 @@ export function createCloudHandler({env=process.env,auth,teaching,assetLoader=as
    if(!['GET','HEAD'].includes(req.method))return respond(405,{error:'Metode tidak diizinkan.'},{Allow:'GET, HEAD'});
    if(!publicPaths.has(path)){
     if(!auth?.configured)return respond(503,{error:'Akses pemilik belum dikonfigurasi.'});
-    const result=await auth.authorize({headers:Object.fromEntries(req.headers)});
+    const result=await auth[['/unlock','/device.mjs'].includes(path)?'authorizeIdentity':'authorize']({headers:Object.fromEntries(req.headers)});
+    ctx.cookie=result.cookie;
     if(result.status!==200){
-     if(result.status===401&&path==='/')return new Response(null,{status:303,headers:{...headers,Location:'/login'}});
+     if(result.status===401&&['/','/unlock','/security'].includes(path))return new Response(null,{status:303,headers:{...headers,Location:'/login'}});
+     if(result.status===423&&['/','/security'].includes(path))return new Response(null,{status:303,headers:{...headers,Location:'/unlock'}});
      return respond(result.status,result.body);
     }
+    ctx.cookie=result.cookie;
    }
    let response;
    if(path==='/overview.json'){
@@ -129,7 +175,9 @@ export function createCloudHandler({env=process.env,auth,teaching,assetLoader=as
   }catch{return new URL(req.url).pathname==='/auth/callback'&&req.method==='GET'?new Response(null,{status:303,headers:{...headers,Location:'/login?error=1'}}):respond(503,{error:'Layanan sementara tidak tersedia.'});}
  }
  return async function handle(req){
-  const response=await respondTo(req);
+  const ctx={};
+  const response=await respondTo(req,ctx);
+  if(ctx.cookie&&response.status!==401)response.headers.append('Set-Cookie',ctx.cookie);
   return req.method==='HEAD'?new Response(null,{status:response.status,statusText:response.statusText,headers:response.headers}):response;
  };
 }

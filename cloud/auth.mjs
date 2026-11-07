@@ -21,6 +21,8 @@ function validConfig(e) {
 const unavailable = () => ({ status: 503, body: { error: 'Authentication unavailable' } });
 export function createOwnerAuth({ env = process.env, fetchImpl = fetch, now = () => Date.now() } = {}) {
   env = { ...env };
+  const inFlightRefreshes = new Map();
+  const refreshCache = new Map();
   const configured = validConfig(env);
   async function readJson(response) {
     if (Number(response.headers.get('content-length')) > 65536) {
@@ -103,7 +105,7 @@ export function createOwnerAuth({ env = process.env, fetchImpl = fetch, now = ()
     });
     if (!response.ok) {
       await response.body?.cancel();
-      return response.status === 401 ? { status: 401, body: { error: 'Authentication required' } } : unavailable();
+      return [401, 403].includes(response.status) ? { status: 401, body: { error: 'Authentication required' }, cookie: clearCookie() } : unavailable();
     }
     const user = await readJson(response);
     if (typeof user.id !== 'string' || typeof user.email !== 'string') return unavailable();
@@ -139,13 +141,87 @@ export function createOwnerAuth({ env = process.env, fetchImpl = fetch, now = ()
         await response.body?.cancel();
         return [400, 401, 403, 422].includes(response.status) ? { status: 401, body: { error: 'Authentication required' } } : unavailable();
       }
-      const { access_token: accessToken } = await readJson(response);
-      const expires = Math.min(now() + 900_000, tokenExpiry(accessToken));
-      if (expires <= now()) return { status: 401, body: { error: 'Authentication required' } };
-      const user = await getUser(accessToken);
-      if (user.status !== 200) return user;
-      return { status: 200, body: { ok: true }, cookie: `__Host-charisna=${seal({ accessToken, expires })}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${Math.max(0, Math.floor((expires - now()) / 1000))}` };
+      return await startSession(await readJson(response));
     } catch { return unavailable(); }
+  }
+  async function signInPassword(password) {
+    if (!configured) return unavailable();
+    if (typeof password !== 'string' || password.length < 8 || password.length > 256) return local({ status: 401, body: { error: 'Authentication required' } });
+    try {
+      const response = await provider('token?grant_type=password', { email: env.OWNER_EMAIL, password });
+      if (!response.ok) {
+        await response.body?.cancel();
+        return [400, 401, 403, 422].includes(response.status) ? { status: 401, body: { error: 'Authentication required' } } : unavailable();
+      }
+      return await startSession(await readJson(response));
+    } catch { return unavailable(); }
+  }
+  // Session cookie: sealed access + refresh token. The window slides on every refresh and lapses after 30 idle days.
+  const REUSE_MS = 5000;
+  const SESSION_MS = 30 * 86_400_000;
+  async function performRefresh(refreshToken) {
+    const cached = refreshCache.get(refreshToken);
+    if (cached && cached.expiresAt > now()) return cached.result;
+    if (inFlightRefreshes.has(refreshToken)) return inFlightRefreshes.get(refreshToken);
+    const flight = (async () => {
+      const response = await provider('token?grant_type=refresh_token', { refresh_token: refreshToken });
+      if (!response.ok) {
+        await response.body?.cancel();
+        return [400, 401, 403, 422].includes(response.status) ? { status: 401, body: { error: 'Authentication required' } } : unavailable();
+      }
+      const tokens = await readJson(response);
+      let renewed;
+      try {
+        renewed = newSession(tokens.access_token, tokens.refresh_token);
+      } catch {
+        return { status: 401, body: { error: 'Authentication required' } };
+      }
+      if (!renewed.refreshToken || renewed.accessExpires <= now()) return { status: 401, body: { error: 'Authentication required' } };
+      const user = await getUser(renewed.accessToken);
+      if (user.status !== 200) return user;
+      return { status: 200, user: user.user, renewed };
+    })().finally(() => {
+      inFlightRefreshes.delete(refreshToken);
+    });
+    inFlightRefreshes.set(refreshToken, flight);
+    const result = await flight;
+    if (result.status === 200) {
+      refreshCache.set(refreshToken, { result, expiresAt: now() + REUSE_MS });
+      if (refreshCache.size > 100) {
+        for (const [k, v] of refreshCache) {
+          if (v.expiresAt <= now()) refreshCache.delete(k);
+        }
+      }
+    }
+    return result;
+  }
+  function cookieFor(session) {
+    const value = seal(session);
+    const name = '__Host-charisna';
+    if (Buffer.byteLength(`${name}=${value}`) > 4000) throw new Error('cookie oversized');
+    return `${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${Math.max(0, Math.floor((session.expires - now()) / 1000))}`;
+  }
+  function newSession(accessToken, refreshToken) {
+    const accessExpires = tokenExpiry(accessToken);
+    const hasRefresh = typeof refreshToken === 'string' && /^[\x21-\x7e]{1,512}$/.test(refreshToken);
+    const expires = hasRefresh ? now() + SESSION_MS : accessExpires;
+    return { kind: 'session', accessToken, refreshToken: hasRefresh ? refreshToken : '', accessExpires, expires };
+  }
+  async function startSession(tokens) {
+    let session;
+    try {
+      session = newSession(tokens.access_token, tokens.refresh_token);
+    } catch {
+      return { status: 401, body: { error: 'Authentication required' } };
+    }
+    if (session.accessExpires <= now() || session.expires <= now()) return { status: 401, body: { error: 'Authentication required' } };
+    const user = await getUser(session.accessToken);
+    if (user.status !== 200) return user;
+    try {
+      return { status: 200, body: { ok: true }, user: user.user, cookie: cookieFor(session) };
+    } catch {
+      return { status: 401, body: { error: 'Authentication required' } };
+    }
   }
   function readSession(request) {
     const raw = request?.headers?.cookie;
@@ -156,31 +232,102 @@ export function createOwnerAuth({ env = process.env, fetchImpl = fetch, now = ()
     if (value.length < 40 || value.length > 4096 || !/^[A-Za-z0-9_-]+$/.test(value)
       || Buffer.from(value, 'base64url').toString('base64url') !== value) throw new Error('invalid cookie');
     const session = open(value);
-    if (!session || !Number.isSafeInteger(session.expires) || session.expires <= now()
-      || session.expires > now() + 900_000 || tokenExpiry(session.accessToken) <= now()) throw new Error('expired session');
+    if (!session || session.kind !== 'session' || !Number.isSafeInteger(session.expires) || session.expires <= now()
+      || session.expires > now() + SESSION_MS || !Number.isSafeInteger(session.accessExpires)
+      || typeof session.refreshToken !== 'string') throw new Error('expired session');
+    tokenExpiry(session.accessToken);
     return session;
   }
-  async function authorize(request) {
-    if (!configured) return unavailable();
+  // Resolve the owner; silently renew an access token that is expired or about to expire.
+  async function resolve(request) {
     let session;
     try { session = readSession(request); }
     catch { return { status: 401, body: { error: 'Authentication required' } }; }
-    try { return await getUser(session.accessToken); } catch { return unavailable(); }
+    try {
+      if (session.accessExpires - 60_000 > now()) {
+        const user = await getUser(session.accessToken);
+        return user.status === 200 ? { ...user, session } : user;
+      }
+      if (!session.refreshToken) return { status: 401, body: { error: 'Authentication required' } };
+      const refreshed = await performRefresh(session.refreshToken);
+      if (refreshed.status !== 200) return refreshed;
+      const renewed = { ...refreshed.renewed, deviceLock: session.deviceLock === true, unlockUntil: session.unlockUntil ?? 0 };
+      try {
+        return { status: 200, user: refreshed.user, session: renewed, cookie: cookieFor(renewed) };
+      } catch {
+        return { status: 401, body: { error: 'Authentication required' } };
+      }
+    } catch { return unavailable(); }
+  }
+  const locked = session => session.deviceLock === true && (!Number.isSafeInteger(session.unlockUntil) || session.unlockUntil <= now());
+  const lockError = cookie => ({ status: 423, body: { error: 'Perangkat terkunci. Buka dengan PIN atau biometrik perangkat.' }, ...(cookie ? { cookie } : {}) });
+  async function authorizeIdentity(request) {
+    if (!configured) return unavailable();
+    const { session, ...result } = await resolve(request);
+    return result;
+  }
+  async function authorize(request) {
+    if (!configured) return unavailable();
+    const { session, ...result } = await resolve(request);
+    return result.status === 200 && locked(session) ? lockError(result.cookie) : result;
+  }
+  // Only handler paths with a verified WebAuthn ceremony may call unlockDevice.
+  async function changeDeviceLock(request, mode) {
+    if (!configured) return unavailable();
+    const { session, ...result } = await resolve(request);
+    if (result.status !== 200) return result;
+    if (mode !== 'unlock' && locked(session)) return lockError(result.cookie);
+    const next = { ...session, deviceLock: mode !== 'disable', unlockUntil: mode === 'disable' ? 0 : now() + 900_000 };
+    return { status: 200, body: { ok: true }, cookie: cookieFor(next) };
+  }
+  const enableDeviceLock = request => changeDeviceLock(request, 'enable');
+  const unlockDevice = request => changeDeviceLock(request, 'unlock');
+  const disableDeviceLock = request => changeDeviceLock(request, 'disable');
+  async function setPassword(request, password) {
+    if (!configured) return unavailable();
+    const owner = await resolve(request);
+    if (owner.status !== 200) { const { session, ...rest } = owner; return rest; }
+    if (locked(owner.session)) return lockError(owner.cookie);
+    const keep = owner.cookie ? { cookie: owner.cookie } : {};
+    if (typeof password !== 'string' || password.length < 8 || password.length > 128) return { status: 400, body: { error: 'Sandi harus 8 sampai 128 karakter.' }, ...keep };
+    try {
+      const response = await fetchImpl(`${env.SUPABASE_URL}/auth/v1/user`, {
+        method: 'PUT', redirect: 'manual', signal: AbortSignal.timeout(5000),
+        headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${owner.session.accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      await response.body?.cancel();
+      if (response.ok) return { status: 200, body: { ok: true }, ...keep };
+      return [400, 422].includes(response.status) ? { status: 400, body: { error: 'Sandi ditolak. Pilih sandi yang lebih kuat.' }, ...keep } : { ...unavailable(), ...keep };
+    } catch { return { ...unavailable(), ...keep }; }
   }
   const clearCookie = () => '__Host-charisna=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
   async function logout(request) {
+    let revoked = false;
     if (configured) {
       try {
         const session = readSession(request);
-        const response = await fetchImpl(`${env.SUPABASE_URL}/auth/v1/logout?scope=global`, {
-          method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(5000),
-          headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${session.accessToken}` }
-        });
-        await response.body?.cancel();
+        let accessToken = session.accessToken;
+        if (session.accessExpires <= now() && session.refreshToken) {
+          const refreshed = await performRefresh(session.refreshToken);
+          if (refreshed.status === 200) {
+            accessToken = refreshed.renewed.accessToken;
+          } else {
+            accessToken = null;
+          }
+        }
+        if (accessToken) {
+          const response = await fetchImpl(`${env.SUPABASE_URL}/auth/v1/logout?scope=global`, {
+            method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(5000),
+            headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${accessToken}` }
+          });
+          revoked = response.ok;
+          await response.body?.cancel();
+        }
       } catch { /* Local logout must succeed even if upstream is unavailable. */ }
     }
-    return { status: 200, body: { ok: true }, cookie: clearCookie() };
+    return { status: 200, body: { ok: true, revoked }, cookie: clearCookie() };
   }
   const clearPkceCookie = () => `${PKCE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-  return { configured, sendLink, exchangeCode, authorize, clearCookie, clearPkceCookie, logout };
+  return { configured, sendLink, exchangeCode, signInPassword, setPassword, authorize, authorizeIdentity, enableDeviceLock, unlockDevice, disableDeviceLock, clearCookie, clearPkceCookie, logout };
 }

@@ -1,5 +1,7 @@
 # CHARISNA SuperApp — Fokus Perhatian
 
+> Revisi login email/sandi dan PIN/biometrik: `docs/AUTH_HERMES_REVISION_2026-11-07.md`. Baca revisi ini; bagian lama di bawah dipertahankan sebagai sejarah.
+
 ## Status terkini (7 November 2026)
 
 > Bagian di bawah blok ini adalah sejarah prototipe lokal (data sintetis, tanpa D1). Yang berlaku sekarang:

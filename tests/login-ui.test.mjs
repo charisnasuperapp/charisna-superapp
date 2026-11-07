@@ -118,6 +118,6 @@ test('login document is an accessible, amount-free, same-origin owner sign-in',a
     assert.match(html,/id="send-link"/);
  assert.match(html,/role="alert"/);assert.match(html,/role="status"/);
  assert.match(html,/src="\/login.mjs"/);assert.match(html,/href="\/styles.css"/);
- assert.match(html,/15 menit/);assert.match(html,/SUMBER NYATA/);
+ assert.match(html,/30 hari/);assert.match(html,/SUMBER NYATA/);
  assert.doesNotMatch(html,/Rp[\d .]|<style|style=|<script(?![^>]*src=)|https?:\/\//);
 });

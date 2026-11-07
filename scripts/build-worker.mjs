@@ -6,7 +6,7 @@ const files = [
   './overview.mjs',
   '../public/styles.css',
   './login.html',
-  './login.mjs'
+  './login.mjs', './security.html', './unlock.html', './device.mjs'
 ];
 const cloud = new URL('../cloud/', import.meta.url);
 const assets = Object.fromEntries(await Promise.all(files.map(async file => [file, await readFile(new URL(file, cloud), 'utf8')])));

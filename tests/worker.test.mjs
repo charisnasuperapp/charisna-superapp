@@ -73,7 +73,7 @@ test('Wrangler configuration binds only the approved D1 Free database and cron',
 
 const sourceFiles = [
   './overview.html', './overview.mjs', '../public/styles.css',
-  './login.html', './login.mjs'
+  './login.html', './login.mjs', './security.html', './unlock.html', './device.mjs'
 ];
 
 test('asset build embeds exactly the five explicit UI sources, byte for byte', async () => {

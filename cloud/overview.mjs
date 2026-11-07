@@ -51,6 +51,7 @@ export function mount({ document = globalThis.document, window = globalThis.wind
   async function load() {
     try {
       const response = await fetchImpl('/overview.json', { cache: 'no-store' });
+      if (response.status === 423) { window.location.replace('/unlock'); return; }
       if (response.status === 401) { window.location.replace('/login'); return; }
       if (!response.ok) throw Error('source');
       const data = await response.json();
@@ -86,6 +87,7 @@ export function mount({ document = globalThis.document, window = globalThis.wind
     $('#disconnect-button').disabled = true;
     try {
       const response = await fetchImpl('/connector/disconnect', post({}));
+      if (response.status === 423) { window.location.replace('/unlock'); return; }
       if (response.status === 401) { window.location.replace('/login'); return; }
       if (!response.ok) throw Error('disconnect');
       showConnection('Koneksi terputus.');

@@ -1,5 +1,7 @@
 # CHARISNA SuperApp — Project Status
 
+> Revisi login sandi + PIN/biometrik: `docs/AUTH_HERMES_REVISION_2026-11-07.md`. Dokumen ini mempertahankan riwayat; baca revisi sebelum memakai klaim auth/status lama.
+
 ## Tahap dan workspace
 
 - Tahap: prototipe lokal **Fokus Perhatian v2.2**, data sintetis; validasi selesai dan kode sudah di-push ke repo private. Commit implementasi `4b79d57c1a95a3725735dd85225d6c6c4f5ff9c6` diverifikasi identik melalui Git lokal dan GitHub API.

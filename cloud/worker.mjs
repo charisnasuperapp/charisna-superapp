@@ -1,5 +1,6 @@
 import {createCloudHandler} from './handler.mjs';
 import {createOwnerAuth} from './auth.mjs';
+import {createOwnerPasskeys} from './passkeys.mjs';
 import {loadAsset} from './assets.mjs';
 import {createTeachingConnector} from './teaching.mjs';
 
@@ -12,7 +13,8 @@ export default {
     if (!handler) {
       const auth = createOwnerAuth({env});
       const teaching = createTeachingConnector({env});
-      handler = createCloudHandler({env, auth, teaching, assetLoader: loadAsset});
+      const passkeys = createOwnerPasskeys({env});
+      handler = createCloudHandler({env, auth, teaching, passkeys, assetLoader: loadAsset});
       handlers.set(env, handler);
     }
     return handler(request);
