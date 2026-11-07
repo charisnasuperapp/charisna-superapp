@@ -5,6 +5,7 @@ const files = [
   './overview.html',
   './overview.mjs',
   './money.html', './money-ui.mjs',
+  './pos.html', './pos-ui.mjs',
   '../public/styles.css',
   '../public/money.css',
   './login.html',

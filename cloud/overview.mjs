@@ -8,7 +8,8 @@ export function mount({ document = globalThis.document, window = globalThis.wind
     const nav = document.createElement('nav'); nav.className = 'source-tabs'; nav.setAttribute('aria-label', 'Sumber data');
     const teaching = document.createElement('a'); teaching.href = '/'; teaching.className = 'button primary'; teaching.setAttribute('aria-current', 'page'); teaching.textContent = 'Teaching Pay Audit';
     const moneyTab = document.createElement('a'); moneyTab.href = '/money'; moneyTab.className = 'button secondary'; moneyTab.textContent = 'Money Management';
-    nav.append(teaching, moneyTab); $('.page-heading').before(nav);
+    const posTab = document.createElement('a'); posTab.href = '/pos'; posTab.className = 'button secondary'; posTab.textContent = 'Bumi Makmur POS';
+    nav.append(teaching, moneyTab, posTab); $('.page-heading').before(nav);
   }
   let connecting = false;
   function showConnection(message = '') {
