@@ -5,6 +5,7 @@ import {loadAsset} from './assets.mjs';
 import {createTeachingConnector} from './teaching.mjs';
 import {createMoneyConnector} from './money.mjs';
 import {createPosConnector} from './pos.mjs';
+import {createKostConnector} from './kost.mjs';
 
 // Reuse isolate-local throttle state. This is not a distributed rate limiter.
 const handlers = new WeakMap();
@@ -17,8 +18,9 @@ export default {
       const teaching = createTeachingConnector({env});
       const money = createMoneyConnector({env});
       const pos = createPosConnector({env});
+      const kost = createKostConnector({env});
       const passkeys = createOwnerPasskeys({env});
-      handler = createCloudHandler({env, auth, teaching, money, pos, passkeys, assetLoader: loadAsset});
+      handler = createCloudHandler({env, auth, teaching, money, pos, kost, passkeys, assetLoader: loadAsset});
       handlers.set(env, handler);
     }
     return handler(request);

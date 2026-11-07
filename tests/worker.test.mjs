@@ -72,7 +72,7 @@ test('Wrangler configuration binds only the approved D1 Free database and cron',
 });
 
 const sourceFiles = [
-  './overview.html', './overview.mjs', './money.html', './money-ui.mjs', './pos.html', './pos-ui.mjs', '../public/styles.css', '../public/money.css',
+  './overview.html', './overview.mjs', './money.html', './money-ui.mjs', './pos.html', './pos-ui.mjs', './kost.html', './kost-ui.mjs', '../public/styles.css', '../public/money.css',
   './login.html', './login.mjs', './security.html', './unlock.html', './device.mjs'
 ];
 

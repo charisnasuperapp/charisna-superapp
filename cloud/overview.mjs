@@ -9,7 +9,8 @@ export function mount({ document = globalThis.document, window = globalThis.wind
     const teaching = document.createElement('a'); teaching.href = '/'; teaching.className = 'button primary'; teaching.setAttribute('aria-current', 'page'); teaching.textContent = 'Teaching Pay Audit';
     const moneyTab = document.createElement('a'); moneyTab.href = '/money'; moneyTab.className = 'button secondary'; moneyTab.textContent = 'Money Management';
     const posTab = document.createElement('a'); posTab.href = '/pos'; posTab.className = 'button secondary'; posTab.textContent = 'Bumi Makmur POS';
-    nav.append(teaching, moneyTab, posTab); $('.page-heading').before(nav);
+    const kostTab = document.createElement('a'); kostTab.href = '/kost'; kostTab.className = 'button secondary'; kostTab.textContent = 'CHARISNA KOST';
+    nav.append(teaching, moneyTab, posTab, kostTab); $('.page-heading').before(nav);
   }
   let connecting = false;
   function showConnection(message = '') {

@@ -5,6 +5,8 @@ const assets=new Map([
  ['/money.mjs', ['./money-ui.mjs','text/javascript; charset=utf-8']],
  ['/pos', ['./pos.html','text/html; charset=utf-8']],
  ['/pos.mjs', ['./pos-ui.mjs','text/javascript; charset=utf-8']],
+ ['/kost', ['./kost.html','text/html; charset=utf-8']],
+ ['/kost.mjs', ['./kost-ui.mjs','text/javascript; charset=utf-8']],
  ['/styles.css', ['../public/styles.css','text/css; charset=utf-8']]
  ,['/money.css', ['../public/money.css','text/css; charset=utf-8']]
 ]);
@@ -43,7 +45,7 @@ async function readJson(req,maxBytes=2048){
  }catch{return {error:400};}finally{reader.releaseLock();}
 }
 
-export function createCloudHandler({env=process.env,auth,teaching,money,pos,passkeys,assetLoader=async()=>{throw Error('Missing asset loader');},now=()=>Date.now()}={}){
+export function createCloudHandler({env=process.env,auth,teaching,money,pos,kost,passkeys,assetLoader=async()=>{throw Error('Missing asset loader');},now=()=>Date.now()}={}){
  let siteOrigin;
  try{const site=new URL(env.SITE_ORIGIN);if(site.protocol==='https:'&&site.origin===env.SITE_ORIGIN&&!site.username&&!site.password)siteOrigin=site.origin;}catch{/* Fail closed. */}
  // Instance-local friction, not a distributed rate limiter.
@@ -161,6 +163,27 @@ export function createCloudHandler({env=process.env,auth,teaching,money,pos,pass
      const result=pos?.configured?await pos.push(parsed.value):{status:503,body:{error:'Konektor belum tersedia.'}};
      return respond(result.status,result.body,extra);
     }
+    if(path==='/kost/push'){
+     const origin=req.headers.get('origin');
+     const allowed=new Set(['https://nothingtoleft.github.io','capacitor://localhost','https://localhost','http://localhost']);
+     const extra=allowed.has(origin)?{...cors(origin),'Access-Control-Allow-Headers':'Content-Type','Access-Control-Allow-Methods':'POST, OPTIONS'}:{};
+     if(req.method==='OPTIONS')return allowed.has(origin)?new Response(null,{status:204,headers:{...headers,...extra}}):respond(403,{error:'Asal permintaan ditolak.'});
+     if(req.method!=='POST')return respond(405,{error:'Metode tidak diizinkan.'},{Allow:'POST, OPTIONS',...extra});
+     if(!allowed.has(origin))return respond(403,{error:'Asal permintaan ditolak.'});
+     const parsed=await readJson(req,32768);if(parsed.error)return respond(parsed.error,{error:'Permintaan tidak valid.'},extra);
+     const result=kost?.configured?await kost.push(parsed.value):{status:503,body:{error:'Konektor belum tersedia.'}};
+     return respond(result.status,result.body,extra);
+    }
+    if(['/kost/pair','/kost/disconnect'].includes(path)){
+     if(req.method!=='POST')return respond(405,{error:'Metode tidak diizinkan.'},{Allow:'POST'});
+     if(req.headers.get('origin')!==siteOrigin||req.headers.get('sec-fetch-site')==='cross-site')return respond(403,{error:'Asal permintaan ditolak.'});
+     const owner=await auth.authorize({headers:Object.fromEntries(req.headers)});
+     if(owner.status!==200)return respond(owner.status,owner.body);
+     ctx.cookie=owner.cookie;
+     const parsed=await readJson(req);if(parsed.error||Object.keys(parsed.value).length)return respond(400,{error:'Permintaan tidak valid.'});
+     const result=kost?.configured?await kost[path==='/kost/pair'?'pair':'disconnect']():{status:503,body:{error:'Konektor belum tersedia.'}};
+     return respond(result.status,result.body);
+    }
     if(['/pos/pair','/pos/disconnect'].includes(path)){
      if(req.method!=='POST')return respond(405,{error:'Metode tidak diizinkan.'},{Allow:'POST'});
      if(req.headers.get('origin')!==siteOrigin||req.headers.get('sec-fetch-site')==='cross-site')return respond(403,{error:'Asal permintaan ditolak.'});
@@ -222,6 +245,10 @@ export function createCloudHandler({env=process.env,auth,teaching,money,pos,pass
    }
    else if(path==='/pos/overview.json'){
     const result=pos?.configured?await pos.overview():{status:503,body:{error:'Konektor belum tersedia.'}};
+    response=respond(result.status,result.body);
+   }
+   else if(path==='/kost/overview.json'){
+    const result=kost?.configured?await kost.overview():{status:503,body:{error:'Konektor belum tersedia.'}};
     response=respond(result.status,result.body);
    }
    else if(path==='/connector/config')response=teaching?.configured?respond(200,teaching.config()):respond(503,{error:'Konektor belum dikonfigurasi.'});
