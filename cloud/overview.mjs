@@ -29,12 +29,15 @@ export function mount({ document = globalThis.document, window = globalThis.wind
     $('#load-status').hidden = true;
     const skeleton = $('#skeleton-panel');
     if (skeleton) skeleton.hidden = true;
-    const months = Array.isArray(data.months) ? [...data.months].sort((a, b) => b.month.localeCompare(a.month)) : [];
-    const current = months[0];
-    $('#period').textContent = current ? monthLabel(current.month) : 'Belum ada bulan tercatat';
-    $('#latest-pay').textContent = current ? money(current.pay_minor) : '—';
-    $('#latest-hours').textContent = current ? `${current.hours} jam` : '—';
-    $('#latest-days').textContent = current ? `${current.teaching_days} hari mengajar` : 'Belum ada catatan bulan';
+
+    const rawMonths = Array.isArray(data.months) ? [...data.months].sort((a, b) => b.month.localeCompare(a.month)) : [];
+    const latestActive = rawMonths.find(m => m.hours > 0 || Number(m.pay_minor) > 0) || rawMonths[0];
+
+    $('#period').textContent = latestActive ? monthLabel(latestActive.month) : 'Belum ada bulan tercatat';
+    $('#latest-pay').textContent = latestActive ? money(latestActive.pay_minor) : '—';
+    $('#latest-hours').textContent = latestActive ? `${latestActive.hours} jam` : '—';
+    $('#latest-days').textContent = latestActive ? `${latestActive.teaching_days} hari mengajar` : 'Belum ada catatan bulan';
+
     const years = Array.isArray(data.years) ? [...data.years].sort((a, b) => b.year.localeCompare(a.year)) : [];
     const currentYear = years[0];
     $('#latest-year-pay').textContent = currentYear ? money(currentYear.pay_minor) : '—';
@@ -43,22 +46,124 @@ export function mount({ document = globalThis.document, window = globalThis.wind
     $('#quality').textContent = data.state === 'stale' ? 'Data tertunda' : 'Dibaca dari sumber';
     $('#quality').className = `badge ${data.state === 'stale' ? 'stale' : 'verified'}`;
     $('#sync-time').textContent = data.synced_at ? `Dibaca ${new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(data.synced_at))} WIB` : 'Waktu sinkron belum tersedia';
+
+    // Populate all months for each recorded year (e.g. 12 months per year)
+    const monthMap = new Map();
+    for (const m of rawMonths) monthMap.set(m.month, m);
+
+    const yearSet = new Set(years.map(y => String(y.year)));
+    if (!yearSet.size && rawMonths.length) {
+      for (const m of rawMonths) yearSet.add(m.month.slice(0, 4));
+    }
+    if (!yearSet.size) yearSet.add(String(new Date().getFullYear()));
+
+    const allMonths = [];
+    for (const y of [...yearSet].sort((a, b) => b.localeCompare(a))) {
+      for (let m = 12; m >= 1; m--) {
+        const key = `${y}-${String(m).padStart(2, '0')}`;
+        if (monthMap.has(key)) {
+          allMonths.push(monthMap.get(key));
+        } else {
+          allMonths.push({
+            month: key,
+            hours: 0,
+            teaching_days: 0,
+            pay_minor: '0',
+            currency: 'USD',
+            scale: 2
+          });
+        }
+      }
+    }
+
+    if ($('#month-count-pill')) {
+      $('#month-count-pill').textContent = `${allMonths.length} Bulan (Gulir)`;
+    }
+
+    const maxHours = Math.max(1, ...allMonths.map(m => m.hours || 0));
     const rows = $('#month-rows');
     rows.replaceChildren();
-    for (const item of months) {
+    for (const item of allMonths) {
       const row = document.createElement('tr');
-      for (const value of [monthLabel(item.month), `${item.hours} jam`, String(item.teaching_days), money(item.pay_minor)]) {
-        const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
+      const isZero = !item.hours && !Number(item.pay_minor);
+      const isLatest = latestActive && item.month === latestActive.month;
+      if (isLatest) row.className = 'row-current';
+      else if (isZero) row.className = 'row-zero';
+
+      // 1. Bulan cell
+      const monthCell = document.createElement('td');
+      const monthWrap = document.createElement('div');
+      monthWrap.className = 'cell-month-wrap';
+      const monthName = document.createElement('span');
+      monthName.className = 'month-name';
+      monthName.textContent = monthLabel(item.month);
+      monthWrap.append(monthName);
+      if (isLatest) {
+        const currentBadge = document.createElement('span');
+        currentBadge.className = 'badge-mini current';
+        currentBadge.textContent = 'Terbaru';
+        monthWrap.append(currentBadge);
       }
+      monthCell.append(monthWrap);
+
+      // 2. Jam cell with micro visual track
+      const hoursCell = document.createElement('td');
+      const hoursWrap = document.createElement('div');
+      hoursWrap.className = 'metric-cell-wrap';
+      const hoursVal = document.createElement('span');
+      hoursVal.className = 'hours-val';
+      hoursVal.textContent = `${item.hours} jam`;
+      hoursWrap.append(hoursVal);
+      if (item.hours > 0) {
+        const barTrack = document.createElement('span');
+        barTrack.className = 'mini-bar-track';
+        const barFill = document.createElement('span');
+        barFill.className = 'mini-bar-fill';
+        barFill.style.width = `${Math.min(100, Math.round((item.hours / maxHours) * 100))}%`;
+        barTrack.append(barFill);
+        hoursWrap.append(barTrack);
+      }
+      hoursCell.append(hoursWrap);
+
+      // 3. Hari cell with pill
+      const daysCell = document.createElement('td');
+      const daysPill = document.createElement('span');
+      daysPill.className = item.teaching_days > 0 ? 'days-pill' : 'days-pill zero';
+      daysPill.textContent = String(item.teaching_days);
+      daysCell.append(daysPill);
+
+      // 4. Gaji cell with highlight
+      const payCell = document.createElement('td');
+      const payTag = document.createElement('span');
+      payTag.className = Number(item.pay_minor) > 0 ? 'pay-highlight' : 'pay-zero';
+      payTag.textContent = money(item.pay_minor);
+      payCell.append(payTag);
+
+      row.append(monthCell, hoursCell, daysCell, payCell);
       rows.append(row);
     }
+
     const yearRows = $('#year-rows');
     yearRows.replaceChildren();
     for (const item of years) {
       const row = document.createElement('tr');
-      for (const value of [item.year, `${item.hours} jam`, String(item.teaching_days), money(item.pay_minor)]) {
-        const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
-      }
+      const yearCell = document.createElement('td');
+      const strong = document.createElement('strong');
+      strong.textContent = `Tahun ${item.year}`;
+      yearCell.append(strong);
+      const hoursCell = document.createElement('td');
+      hoursCell.textContent = `${item.hours} jam`;
+      const daysCell = document.createElement('td');
+      const daysPill = document.createElement('span');
+      daysPill.className = 'days-pill';
+      daysPill.textContent = String(item.teaching_days);
+      daysCell.append(daysPill);
+      const payCell = document.createElement('td');
+      const payTag = document.createElement('span');
+      payTag.className = 'pay-highlight';
+      payTag.textContent = money(item.pay_minor);
+      payCell.append(payTag);
+      row.append(yearCell, hoursCell, daysCell, payCell);
       yearRows.append(row);
     }
   }
