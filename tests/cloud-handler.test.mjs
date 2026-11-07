@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 const origin='https://charisna-superapp.vercel.app';
 const baseAuth={configured:true,authorize:async()=>({status:401,body:{error:'Sesi tidak valid'}})};
-async function make(auth=baseAuth){
+async function make(auth=baseAuth,teaching=null){
  const {createCloudHandler}=await import('../cloud/handler.mjs');
  const {readFile}=await import('node:fs/promises');
- return createCloudHandler({env:{SITE_ORIGIN:origin},auth,assetLoader:file=>readFile(new URL('../cloud/'+file,import.meta.url))});
+ return createCloudHandler({env:{SITE_ORIGIN:origin},auth,teaching,assetLoader:file=>readFile(new URL('../cloud/'+file,import.meta.url))});
 }
 const request=(path,options={})=>new Request(origin+path,options);
 test('cloud handler denies overview and personal data without a session',async()=>{
@@ -17,12 +17,14 @@ test('cloud handler denies overview and personal data without a session',async()
  }
 });
 
-test('owner can read synthetic dashboard; overview excludes personal balance',async()=>{
- const handle=await make({...baseAuth,authorize:async()=>({status:200,user:{id:'owner'}})});
- const home=await handle(request('/')); assert.equal(home.status,200); assert.match(await home.text(),/Beranda Pemilik/);
- const overview=await handle(request('/demo/overview.json'));assert.equal(overview.status,200);
- const data=await overview.json();assert.equal(data.businesses[0].amount_minor,'12150000');assert.equal(data.personal.amount_minor,undefined);
- const personal=await handle(request('/demo/personal.json')); assert.equal(personal.status,200);assert.equal((await personal.json()).personal.amount_minor,'8750000');
+test('owner can read live-only dashboard; synthetic endpoints are absent',async()=>{
+ const teaching={configured:true,overview:async()=>({status:200,body:{state:'not_connected'}}),config:()=>({apiKey:'public-key',projectId:'source'})};
+ const handle=await make({...baseAuth,authorize:async()=>({status:200,user:{id:'owner'}})},teaching);
+ const home=await handle(request('/')); assert.equal(home.status,200);const html=await home.text();assert.match(html,/Ringkasan penghasilan/);assert.doesNotMatch(html,/12150000|8750000|Data contoh/);
+ const overview=await handle(request('/overview.json'));assert.equal(overview.status,200);
+ assert.deepEqual(await overview.json(),{state:'not_connected'});
+ assert.equal((await handle(request('/demo/overview.json'))).status,404);
+ assert.equal((await handle(request('/demo/personal.json'))).status,404);
 });
 
 test('cloud perimeter rejects foreign hosts, cross-site mutations and unconfigured auth',async()=>{
@@ -118,7 +120,7 @@ test('cloud perimeter rejects foreign hosts, cross-site mutations and unconfigur
 
 test('HEAD responses preserve status and headers but never include a body',async t=>{
  const {createCloudHandler}=await import('../cloud/handler.mjs');
- const owner=await make({...baseAuth,authorize:async()=>({status:200,user:{id:'owner'}})});
+ const owner=await make({...baseAuth,authorize:async()=>({status:200,user:{id:'owner'}})},{configured:true,overview:async()=>({status:200,body:{state:'not_connected'}})});
  const guest=await make();
  const unconfigured=await make({...baseAuth,configured:false});
  const missingOrigin=createCloudHandler({env:{},auth:baseAuth});
@@ -127,7 +129,7 @@ test('HEAD responses preserve status and headers but never include a body',async
  const assetFailure=createCloudHandler({env:{SITE_ORIGIN:origin},auth:baseAuth,assetLoader:async()=>{throw Error('asset-failure');}});
  for(const [name,handle,url,status,extraHeaders] of [
   ['dashboard',owner,origin+'/',200],
-  ['personal data',owner,origin+'/demo/personal.json',200],
+  ['source overview',owner,origin+'/overview.json',200],
   ['public login',guest,origin+'/login',200],
   ['login redirect',guest,origin+'/',303,{location:'/login'}],
   ['unauthorized',guest,origin+'/demo/personal.json',401],
@@ -163,4 +165,36 @@ test('local rejections (missing PKCE cookie) do not consume the callback budget'
  for(let i=0;i<20;i++)assert.equal((await handle(request('/auth/callback?code=abcdefgh'))).status,303);
  const ok=await make({...baseAuth,exchangeCode:async()=>({status:200,body:{ok:true},cookie:'a=b'}),clearPkceCookie:()=>'c=d'});
  assert.equal((await ok(request('/auth/callback?code=abcdefgh'))).status,200);
+});
+
+test('signal endpoint: exact MySalary origin, preflight, no cookie needed, no extra fields',async()=>{
+ const mysalary='https://www.mysalary.my.id';let seen=[];
+ const teaching={configured:true,signal:async token=>{seen.push(token);return {status:200,body:{accepted:true}};}};
+ const handle=await make(baseAuth,teaching);
+ const token='t'.repeat(40);
+ const post=(headers,body)=>handle(request('/connector/signal',{method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify(body)}));
+ for(const o of [undefined,'https://evil.example','https://mysalary.my.id',origin]){
+  const res=await post(o?{origin:o}:{}, {idToken:token});assert.equal(res.status,403,String(o));assert.equal(res.headers.get('access-control-allow-origin'),null);
+ }
+ assert.equal(seen.length,0);
+ const pre=await handle(request('/connector/signal',{method:'OPTIONS',headers:{origin:mysalary}}));
+ assert.equal(pre.status,204);assert.equal(pre.headers.get('access-control-allow-origin'),mysalary);assert.equal(pre.headers.get('access-control-allow-methods'),'POST');
+ assert.equal((await handle(request('/connector/signal',{method:'OPTIONS',headers:{origin:'https://evil.example'}}))).status,403);
+ const ok=await post({origin:mysalary},{idToken:token});
+ assert.equal(ok.status,200);assert.equal(ok.headers.get('access-control-allow-origin'),mysalary);assert.deepEqual(await ok.json(),{accepted:true});
+ assert.deepEqual(seen,[token]);
+ assert.equal((await post({origin:mysalary},{idToken:token,amount:1})).status,400);
+ assert.equal((await handle(request('/connector/signal',{method:'GET',headers:{origin:mysalary}}))).status,405);
+ const text=await handle(request('/connector/signal',{method:'POST',headers:{origin:mysalary,'content-type':'text/plain'},body:'x'}));
+ assert.equal(text.status,415);
+});
+
+test('signal endpoint is throttled per isolate and 503 when connector missing',async()=>{
+ const mysalary='https://www.mysalary.my.id';
+ const handle=await make(baseAuth,{configured:true,signal:async()=>({status:202,body:{accepted:true}})});
+ const call=()=>handle(request('/connector/signal',{method:'POST',headers:{origin:mysalary,'content-type':'application/json'},body:JSON.stringify({idToken:'t'.repeat(40)})}));
+ let last;for(let i=0;i<31;i++)last=await call();
+ assert.equal(last.status,429);assert.equal(last.headers.get('access-control-allow-origin'),mysalary);
+ const none=await make(baseAuth,null);
+ assert.equal((await none(request('/connector/signal',{method:'POST',headers:{origin:mysalary,'content-type':'application/json'},body:'{"idToken":"x"}'}))).status,503);
 });

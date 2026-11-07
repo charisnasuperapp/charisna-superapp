@@ -7,5 +7,7 @@
   "workers_dev": true,
   "preview_urls": false,
   "build": {"command": "node scripts/build-worker.mjs"},
+  "d1_databases": [{"binding": "TEACHING_STATE", "database_name": "charisna-teaching-state", "database_id": "34d0a6ac-1651-4b9e-baa3-0b94b42910e6"}],
+  "triggers": {"crons": ["0 */6 * * *"]},
   "observability": {"enabled": false}
 }

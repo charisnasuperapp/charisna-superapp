@@ -96,3 +96,21 @@ Buka `http://127.0.0.1:4173`. Tes: `npm test`; syntax: `npm run check`; lab: `np
 - Worker live: https://charisna-superapp.charisna-superapp.workers.dev. Secret Wrangler sudah diset (SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, OWNER_EMAIL, SESSION_SECRET, SITE_ORIGIN).
 - Manual: tambahkan https://charisna-superapp.charisna-superapp.workers.dev/auth/callback ke Supabase Auth > URL Configuration (Redirect URLs) dan set Site URL ke origin yang sama.
 - Pilihan magic link adalah asumsi agen; batas email Supabase Free 2/jam.
+
+## Status terkini (7 November 2026)
+
+> Bagian di bawah blok ini adalah sejarah prototipe lokal (data sintetis, tanpa D1). Yang berlaku sekarang:
+>
+> - **Runtime nyata**: Cloudflare Worker `https://charisna-superapp.charisna-superapp.workers.dev/`, login owner via Supabase magic link. Demo lokal (`server.mjs`, `demo/`) tetap terpisah dan tidak disajikan oleh Worker.
+> - **Konektor MySalary**: token Firebase disimpan **terenkripsi** (AES-256-GCM, kunci dari `SESSION_SECRET`) di D1 `charisna-teaching-state`. Kontrak: `docs/TEACHING_PAY_CONNECTOR.md`.
+> - **Sinkron**: Cron `0 */6 * * *` UTC sebagai cadangan; pemicu cepat `POST /connector/signal` aktif hanya setelah patch MySalary (`patches/mysalary-superapp-signal.patch`) diterapkan dan dideploy oleh pemilik repo sumber.
+> - **Vercel lama** (`charisna-superapp.vercel.app`) mengembalikan HTTP 500 dan **bukan** aplikasi aktif. Jangan dipakai.
+> - Bukti live koneksi MySalary nyata, Cron nyata, dan sinyal cepat nyata: **belum ada** (lihat PROJECT_STATUS.md).
+
+
+## 7 November 2026: handoff MySalary nyata
+
+- P0 race disconnect/sync diperbaiki dengan compare-and-swap D1; tes interleaving disconnect, reconnect, Cron, rotasi refresh token lulus.
+- P1 endpoint `/connector/signal` dibangun dan diuji unit. Patch MySalary tersimpan di `patches/`; hak repo sumber hanya READ, jadi belum dideploy.
+- Tes: 128/128, syntax 24 modul. MySalary dengan patch: 42/42 tes.
+- **Belum terbukti**: koneksi MySalary nyata, kecocokan bulan/tahun, Cron nyata, sinyal cepat nyata, pengukuran CPU/subrequest Free.

@@ -2,8 +2,8 @@ import {readFile, writeFile} from 'node:fs/promises';
 
 // Deliberately enumerate UI assets. Never glob directories, fixtures, or environment files.
 const files = [
-  '../public/index.html',
-  '../public/app.mjs',
+  './overview.html',
+  './overview.mjs',
   '../public/styles.css',
   './login.html',
   './login.mjs'

@@ -1,7 +1,6 @@
-import {getDemoOverview} from '../demo/overview.mjs';
 const assets=new Map([
- ['/', ['../public/index.html','text/html; charset=utf-8']],
- ['/app.mjs', ['../public/app.mjs','text/javascript; charset=utf-8']],
+ ['/', ['./overview.html','text/html; charset=utf-8']],
+ ['/app.mjs', ['./overview.mjs','text/javascript; charset=utf-8']],
  ['/styles.css', ['../public/styles.css','text/css; charset=utf-8']]
 ]);
 const respond=(status,body,extra={})=>Response.json(body,{status,headers:{...headers,...extra}});
@@ -17,26 +16,33 @@ assets.set('/login',['./login.html','text/html; charset=utf-8']);
 assets.set('/login.mjs',['./login.mjs','text/javascript; charset=utf-8']);
 const publicPaths=new Set(['/login','/login.mjs','/styles.css']);
 const authPaths=new Set(['/auth/send-link','/auth/logout']);
+const connectorPaths=new Set(['/connector/connect','/connector/disconnect']);
+const SIGNAL_PATH='/connector/signal';
+const DEFAULT_SIGNAL_ORIGIN='https://www.mysalary.my.id';
+const connectorCsp=headers['Content-Security-Policy'].replace("connect-src 'self'", "connect-src 'self' https://identitytoolkit.googleapis.com");
 
-async function readJson(req){
+async function readJson(req,maxBytes=2048){
  if(!/^application\/json(?:\s*;|$)/i.test(req.headers.get('content-type')??''))return {error:415};
  const length=req.headers.get('content-length');
- if(length!==null&&(!/^\d+$/.test(length)||Number(length)>2048))return {error:413};
+ if(length!==null&&(!/^\d+$/.test(length)||Number(length)>maxBytes))return {error:413};
  if(!req.body)return {value:{}};
  const reader=req.body.getReader();const chunks=[];let size=0;
  try{
-  while(true){const {value,done}=await reader.read();if(done)break;size+=value.length;if(size>2048){await reader.cancel();return {error:413};}chunks.push(value);}
+  while(true){const {value,done}=await reader.read();if(done)break;size+=value.length;if(size>maxBytes){await reader.cancel();return {error:413};}chunks.push(value);}
   const buffer=new Uint8Array(size);let offset=0;for(const chunk of chunks){buffer.set(chunk,offset);offset+=chunk.length;}
   const value=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(buffer));
   return value&&typeof value==='object'&&!Array.isArray(value)?{value}:{error:400};
  }catch{return {error:400};}finally{reader.releaseLock();}
 }
 
-export function createCloudHandler({env=process.env,auth,assetLoader=async()=>{throw Error('Missing asset loader');},now=()=>Date.now()}={}){
+export function createCloudHandler({env=process.env,auth,teaching,assetLoader=async()=>{throw Error('Missing asset loader');},now=()=>Date.now()}={}){
  let siteOrigin;
  try{const site=new URL(env.SITE_ORIGIN);if(site.protocol==='https:'&&site.origin===env.SITE_ORIGIN&&!site.username&&!site.password)siteOrigin=site.origin;}catch{/* Fail closed. */}
  // Instance-local friction, not a distributed rate limiter.
- let sendAfter=0,verifyWindow=0,verifyAttempts=0;
+ let sendAfter=0,verifyWindow=0,verifyAttempts=0,signalWindow=0,signalCount=0;
+ // The only cross-origin caller allowed: the MySalary web app. CORS is a browser rule, not authentication; the Firebase ID token is.
+ const signalOrigin=env.TEACHING_SIGNAL_ORIGIN??DEFAULT_SIGNAL_ORIGIN;
+ const cors=origin=>({'Access-Control-Allow-Origin':origin,'Vary':'Origin'});
  async function respondTo(req){
   try{
    const url=new URL(req.url);const path=url.pathname;
@@ -71,6 +77,37 @@ export function createCloudHandler({env=process.env,auth,assetLoader=async()=>{t
      sendAfter=now()+60000;const result=await auth.sendLink();
      return respond(result.status,result.body,result.cookie?{'Set-Cookie':result.cookie}:{});
     }
+    if(path===SIGNAL_PATH){
+     const origin=req.headers.get('origin');
+     if(origin!==signalOrigin)return respond(403,{error:'Asal permintaan ditolak.'});
+     if(req.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,...cors(origin),'Access-Control-Allow-Methods':'POST','Access-Control-Allow-Headers':'Content-Type','Access-Control-Max-Age':'600'}});
+     if(req.method!=='POST')return respond(405,{error:'Metode tidak diizinkan.'},{Allow:'POST, OPTIONS',...cors(origin)});
+     if(!teaching?.configured)return respond(503,{error:'Konektor belum dikonfigurasi.'},cors(origin));
+     // Isolate-local burst limit; the persisted cooldown in D1 is the cross-isolate guard.
+     if(now()>=signalWindow){signalWindow=now()+60000;signalCount=0;}
+     if(++signalCount>30)return respond(429,{error:'Terlalu banyak sinyal.'},{'Retry-After':'60',...cors(origin)});
+     const parsed=await readJson(req,6144);
+     if(parsed.error)return respond(parsed.error,{error:'Permintaan tidak valid.'},cors(origin));
+     if(Object.keys(parsed.value).join(',')!=='idToken')return respond(400,{error:'Permintaan tidak valid.'},cors(origin));
+     const result=await teaching.signal(parsed.value.idToken);
+     return respond(result.status,result.body,cors(origin));
+    }
+    if(connectorPaths.has(path)){
+     if(req.method!=='POST')return respond(405,{error:'Metode tidak diizinkan.'},{Allow:'POST'});
+     if(req.headers.get('origin')!==siteOrigin||req.headers.get('sec-fetch-site')==='cross-site')return respond(403,{error:'Asal permintaan ditolak.'});
+     if(!auth?.configured)return respond(503,{error:'Akses pemilik belum dikonfigurasi.'});
+     const owner=await auth.authorize({headers:Object.fromEntries(req.headers)});
+     if(owner.status!==200)return respond(owner.status,owner.body);
+     if(!teaching?.configured)return respond(503,{error:'Konektor belum dikonfigurasi.'});
+     const parsed=await readJson(req,path==='/connector/connect'?8192:2048);
+     if(parsed.error)return respond(parsed.error,{error:'Permintaan tidak valid.'});
+     if(path==='/connector/disconnect'){
+      if(Object.keys(parsed.value).length)return respond(400,{error:'Permintaan tidak valid.'});
+      const result=await teaching.disconnect();return respond(result.status,result.body);
+     }
+     if(Object.keys(parsed.value).sort().join(',')!=='idToken,refreshToken')return respond(400,{error:'Permintaan tidak valid.'});
+     const result=await teaching.connect(parsed.value);return respond(result.status,result.body,result.cookie?{'Set-Cookie':result.cookie}:{});
+    }
    if(!['GET','HEAD'].includes(req.method))return respond(405,{error:'Metode tidak diizinkan.'},{Allow:'GET, HEAD'});
    if(!publicPaths.has(path)){
     if(!auth?.configured)return respond(503,{error:'Akses pemilik belum dikonfigurasi.'});
@@ -81,9 +118,12 @@ export function createCloudHandler({env=process.env,auth,assetLoader=async()=>{t
     }
    }
    let response;
-   if(path==='/demo/overview.json'){const data=structuredClone(getDemoOverview());delete data.personal.amount_minor;response=respond(200,data);}
-   else if(path==='/demo/personal.json')response=respond(200,{environment:'demo',personal:getDemoOverview().personal});
-   else if(assets.has(path)){const [file,type]=assets.get(path);response=new Response(await assetLoader(file),{headers:{...headers,'Content-Type':type}});}
+   if(path==='/overview.json'){
+    const result=teaching?.configured?await teaching.overview():{status:503,body:{state:'source_error',message:'Konektor belum dikonfigurasi.'}};
+    response=respond(result.status,result.body);
+   }
+   else if(path==='/connector/config')response=teaching?.configured?respond(200,teaching.config()):respond(503,{error:'Konektor belum dikonfigurasi.'});
+   else if(assets.has(path)){const [file,type]=assets.get(path);response=new Response(await assetLoader(file),{headers:{...headers,'Content-Type':type,...(path==='/'?{'Content-Security-Policy':connectorCsp}:{})}});}
    else response=respond(404,{error:'Tidak ditemukan.'});
    return response;
   }catch{return new URL(req.url).pathname==='/auth/callback'&&req.method==='GET'?new Response(null,{status:303,headers:{...headers,Location:'/login?error=1'}}):respond(503,{error:'Layanan sementara tidak tersedia.'});}

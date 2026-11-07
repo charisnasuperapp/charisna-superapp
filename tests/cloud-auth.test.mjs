@@ -37,7 +37,7 @@ test('sendLink requests only the fixed owner with PKCE challenge and redirect to
   assert.match(body.code_challenge, /^[A-Za-z0-9_-]{43}$/);
   assert.ok(!sent.cookie.includes(body.code_challenge));
   assert.equal(calls[0].options.headers.apikey, env().SUPABASE_PUBLISHABLE_KEY);
-  assert.equal(calls[0].options.redirect, 'error');
+  assert.equal(calls[0].options.redirect, 'manual');
   assert.ok(calls[0].options.signal instanceof AbortSignal);
 });
 
@@ -161,7 +161,7 @@ test('cookie lifetime is capped at token expiry and expired provider tokens are 
 });
 
 test('provider status and fetch failures are contained without leaking details', async () => {
-  for (const status of [401, 429, 500]) {
+  for (const status of [302, 401, 429, 500]) {
     for (const action of ['sendLink', 'verifyCode', 'authorize']) {
       const issued = await fixture().auth.verifyCode('authcode123456');
       const auth = makeAuth({ env: env(), now: () => START, fetchImpl: async () => json({ message: 'private upstream details', access_token: token() }, status) });
@@ -196,7 +196,7 @@ test('logout revokes upstream best effort and always expires the secure cookie',
   assert.equal(call.url, `${env().SUPABASE_URL}/auth/v1/logout?scope=global`);
   assert.equal(call.options.method, 'POST');
   assert.equal(call.options.headers.Authorization, `Bearer ${token()}`);
-  assert.equal(call.options.redirect, 'error');
+  assert.equal(call.options.redirect, 'manual');
   assert.ok(call.options.signal instanceof AbortSignal);
   for (const response of [async () => json({ private: 'details' }, 500), async () => { throw new Error('private'); }]) {
     const failed = makeAuth({ env: env(), now: () => START, fetchImpl: response });

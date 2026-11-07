@@ -3,14 +3,14 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>Masuk Pemilik — CHARISNA</title><link rel="stylesheet" href="/styles.css"><script type="module" src="/login.mjs"></script></head>
 <body class="login-page">
 <a class="skip" href="#main">Lewati ke halaman masuk</a>
-<header class="topbar"><a class="brand" href="/login" aria-label="CHARISNA SuperApp, masuk pemilik"><span class="brand-mark" aria-hidden="true">C</span><span>CHARISNA <small>SUPERAPP</small></span></a><span class="demo-label">Data contoh</span></header>
+<header class="topbar"><a class="brand" href="/login" aria-label="CHARISNA SuperApp, masuk pemilik"><span class="brand-mark" aria-hidden="true">C</span><span>CHARISNA <small>SUPERAPP</small></span></a><span class="demo-label">Sumber nyata</span></header>
 <main id="main" class="login-main">
-<section class="login-intro" aria-labelledby="intro-title"><p class="eyebrow">RUANG PEMILIK · DATA SINTETIS</p><h1 id="intro-title">Satu ruang.<br>Fokus yang tepat<span class="title-dot">.</span></h1><p class="subtitle">Masuk untuk melihat ringkasan usaha contoh dalam ruang khusus pemilik.</p><div class="login-context"><span class="note-icon" aria-hidden="true">i</span><p>Tidak terhubung ke usaha atau rekening nyata. Seluruh data di dalam aplikasi bersifat sintetis.</p></div><p class="login-session">Sesi berlaku 15 menit tanpa perpanjangan otomatis. Setelah sesi berakhir, masuk kembali dengan tautan baru.</p></section>
+<section class="login-intro" aria-labelledby="intro-title"><p class="eyebrow">RUANG PEMILIK · SUMBER NYATA</p><h1 id="intro-title">Satu ruang.<br>Fokus yang tepat<span class="title-dot">.</span></h1><p class="subtitle">Masuk untuk melihat ringkasan MySalary dalam ruang khusus pemilik.</p><div class="login-context"><span class="note-icon" aria-hidden="true">i</span><p>MySalary perlu dihubungkan sekali pada browser ini. Gaji mengajar tetap terpisah dari omzet usaha.</p></div><p class="login-session">Sesi berlaku 15 menit tanpa perpanjangan otomatis. Setelah sesi berakhir, masuk kembali dengan tautan baru.</p></section>
 <section class="login-card" aria-labelledby="login-title"><p class="eyebrow">AKSES KHUSUS PEMILIK</p><h2 id="login-title">Masuk dengan tautan</h2><p class="login-description">Minta tautan sekali pakai ke email pemilik yang telah terdaftar. Buka tautan di peramban yang sama dengan halaman ini. Tidak perlu kata sandi.</p>
 <form id="send-link-form" action="/auth/send-link" method="post"><button id="send-link" class="button primary" type="submit" disabled>Kirim tautan masuk</button><p id="send-cooldown" class="field-hint">Tautan hanya dikirim ke email pemilik terdaftar.</p></form>
 <p id="login-status" class="login-status" role="status" aria-live="polite" aria-atomic="true"></p><p id="login-error" class="login-error" role="alert" aria-atomic="true"></p>
 <noscript><p>Aktifkan JavaScript untuk masuk dengan aman. Tautan hanya dikirim ke email pemilik terdaftar.</p></noscript>
-<p class="login-privacy">Akses diverifikasi oleh server. Penutup saldo di dalam aplikasi hanya kenyamanan visual, bukan pengganti autentikasi.</p>
+<p class="login-privacy">Akses diverifikasi oleh server. Data MySalary hanya dibaca setelah akun sumber dihubungkan.</p>
 </section>
-<footer><span>CHARISNA SuperApp</span><span>Demo cloud · data sintetis · bukan data produksi</span></footer>
+<footer><span>CHARISNA SuperApp</span><span>Data MySalary · hanya baca · khusus pemilik</span></footer>
 </main></body></html>

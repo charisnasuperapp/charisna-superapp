@@ -1,0 +1,123 @@
+diff --git a/src/lib/firebase-rest.js b/src/lib/firebase-rest.js
+index 3de8402..15cd0ea 100644
+--- a/src/lib/firebase-rest.js
++++ b/src/lib/firebase-rest.js
+@@ -5,6 +5,8 @@ const LEGACY_SESSION_KEY = 'audit-gaji-firebase-anonymous-session-v2';
+ const MAX_MONTHS = 600;
+ const MAX_MONTH_WRITES_PER_COMMIT = 400;
+ const EPOCH = '1970-01-01T00:00:00.000Z';
++// SuperApp dashboard trigger. Sends only the Firebase ID token; SuperApp re-reads Firestore itself.
++const SUPERAPP_SIGNAL_URL = 'https://charisna-superapp.charisna-superapp.workers.dev/connector/signal';
+ 
+ export class FirebaseRestClient {
+   constructor(config) {
+@@ -225,6 +227,8 @@ export class FirebaseRestClient {
+ 
+       await this.#commit(writes, { keepalive: Boolean(options.keepalive && isFinalChunk) });
+     }
++    // Only reached after every Firestore commit succeeded.
++    this.#notifySuperApp(session, options);
+     return revision;
+   }
+ 
+@@ -240,6 +244,7 @@ export class FirebaseRestClient {
+         updatedAt: revision,
+       }),
+     ], options);
++    this.#notifySuperApp(session, options);
+     return revision;
+   }
+ 
+@@ -250,6 +255,7 @@ export class FirebaseRestClient {
+     await this.#commit([
+       createUpdateWrite(this.#documentName(`${root}/salaryAuditMonths/${month.monthKey}`), month),
+     ], options);
++    this.#notifySuperApp(session, options);
+   }
+ 
+   async syncAll(database, options = {}) {
+@@ -257,6 +263,24 @@ export class FirebaseRestClient {
+     return this.saveChanges(database, monthKeys, options);
+   }
+ 
++  // Best-effort, fire-and-forget. Never throws and never delays or fails the save; SuperApp Cron is the fallback.
++  // pagehide/keepalive delivery is not guaranteed.
++  #notifySuperApp(session, options = {}) {
++    try {
++      if (typeof fetch !== 'function' || !session?.idToken) return;
++      fetch(SUPERAPP_SIGNAL_URL, {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({ idToken: session.idToken }),
++        keepalive: Boolean(options.keepalive),
++        credentials: 'omit',
++        referrerPolicy: 'no-referrer',
++      }).catch(() => {});
++    } catch {
++      // Signal failure must never affect saving.
++    }
++  }
++
+   #assertConfigured() {
+     if (!this.configured) throw new Error('Firebase configuration is not available.');
+   }
+diff --git a/tests/firebase-rest.test.mjs b/tests/firebase-rest.test.mjs
+index 7d243ba..8582b8a 100644
+--- a/tests/firebase-rest.test.mjs
++++ b/tests/firebase-rest.test.mjs
+@@ -273,3 +273,42 @@ test('change password reauthenticates with the current password and refreshes th
+     globalThis.fetch = previousFetch;
+   }
+ });
++
++test('cloud saves signal SuperApp with only the ID token and survive signal failure', async () => {
++  const previousStorage = globalThis.localStorage;
++  const previousFetch = globalThis.fetch;
++  globalThis.localStorage = new MemoryStorage();
++  const calls = [];
++  let failSignal = false;
++  globalThis.fetch = async (url, options = {}) => {
++    calls.push({ url: String(url), body: options.body || '', keepalive: options.keepalive });
++    if (String(url).includes('accounts:signInWithPassword')) {
++      return jsonResponse(200, { localId: 'user-123', email: 'o@example.com', idToken: 'id-token', refreshToken: 'refresh-token', expiresIn: '3600' });
++    }
++    if (String(url).includes('/connector/signal')) {
++      if (failSignal) throw new Error('offline');
++      return jsonResponse(200, { accepted: true });
++    }
++    if (String(url).includes('documents:commit') && globalThis.__failCommit) return jsonResponse(500, { error: { message: 'x' } });
++    return jsonResponse(200, { name: 'ok' });
++  };
++  try {
++    const client = new FirebaseRestClient({ apiKey: 'k', projectId: 'test-project' });
++    await client.signIn('o@example.com', 'secret12');
++    const db = { version: 2, settings: {}, months: {} };
++    await client.saveChanges(db, []);
++    let signals = calls.filter((call) => call.url.includes('/connector/signal'));
++    assert.equal(signals.length, 1);
++    assert.deepEqual(JSON.parse(signals[0].body), { idToken: 'id-token' });
++    failSignal = true;
++    await client.saveChanges(db, []);
++    globalThis.__failCommit = true;
++    const before = calls.filter((call) => call.url.includes('/connector/signal')).length;
++    await assert.rejects(client.saveChanges(db, []));
++    assert.equal(calls.filter((call) => call.url.includes('/connector/signal')).length, before);
++  } finally {
++    delete globalThis.__failCommit;
++    globalThis.localStorage = previousStorage;
++    globalThis.fetch = previousFetch;
++  }
++});
+diff --git a/vercel.json b/vercel.json
+index b4b44b5..76550e7 100644
+--- a/vercel.json
++++ b/vercel.json
+@@ -12,7 +12,7 @@
+     {
+       "source": "/(.*)",
+       "headers": [
+-        { "key": "Content-Security-Policy", "value": "default-src 'self'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com; img-src 'self' data:; style-src 'self'; script-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'" },
++        { "key": "Content-Security-Policy", "value": "default-src 'self'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://charisna-superapp.charisna-superapp.workers.dev; img-src 'self' data:; style-src 'self'; script-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'" },
+         { "key": "X-Content-Type-Options", "value": "nosniff" },
+         { "key": "X-Frame-Options", "value": "DENY" },
+         { "key": "Referrer-Policy", "value": "no-referrer" },

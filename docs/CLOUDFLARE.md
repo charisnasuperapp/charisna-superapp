@@ -1,5 +1,16 @@
 # Cloudflare Workers Free — adapter lokal
 
+## Status terkini (7 November 2026)
+
+> Bagian di bawah blok ini adalah sejarah prototipe lokal (data sintetis, tanpa D1). Yang berlaku sekarang:
+>
+> - **Runtime nyata**: Cloudflare Worker `https://charisna-superapp.charisna-superapp.workers.dev/`, login owner via Supabase magic link. Demo lokal (`server.mjs`, `demo/`) tetap terpisah dan tidak disajikan oleh Worker.
+> - **Konektor MySalary**: token Firebase disimpan **terenkripsi** (AES-256-GCM, kunci dari `SESSION_SECRET`) di D1 `charisna-teaching-state`. Kontrak: `docs/TEACHING_PAY_CONNECTOR.md`.
+> - **Sinkron**: Cron `0 */6 * * *` UTC sebagai cadangan; pemicu cepat `POST /connector/signal` aktif hanya setelah patch MySalary (`patches/mysalary-superapp-signal.patch`) diterapkan dan dideploy oleh pemilik repo sumber.
+> - **Vercel lama** (`charisna-superapp.vercel.app`) mengembalikan HTTP 500 dan **bukan** aplikasi aktif. Jangan dipakai.
+> - Bukti live koneksi MySalary nyata, Cron nyata, dan sinyal cepat nyata: **belum ada** (lihat PROJECT_STATUS.md).
+
+
 ## Batas biaya
 
 Target hanya **Workers Free**, bukan trial atau Workers Paid. Cloudflare menyatakan Workers Free tersedia secara default, dengan 100.000 permintaan/hari dan 10 ms CPU per pemanggilan.[1] Jangan aktifkan pembayaran, upgrade paket, domain berbayar, atau produk tambahan untuk menjalankan adapter ini. Konfigurasi repository tidak dapat mengubah akun Paid menjadi Free: status paket tetap harus diperiksa pemilik sebelum deployment.
@@ -81,3 +92,10 @@ Jika profil runtime menunjukkan kalkulasi demo mahal, optimasi terpisah dapat me
 
 [1] https://developers.cloudflare.com/workers/platform/pricing
 [2] https://developers.cloudflare.com/workers/platform/limits
+
+## Konektor MySalary: D1, Cron, sinyal
+
+- D1 `charisna-teaching-state` (binding `TEACHING_STATE`), tabel `connector_state`; skema di `cloud/teaching.sql`. Payload hanya ciphertext.
+- Penulisan latar (sync, Cron, sinyal) memakai compare-and-swap `UPDATE ... WHERE id=? AND payload=?` dan memeriksa `meta.changes`; setelah putus koneksi atau sambung ulang, proses lama tidak dapat menulis token atau snapshot kembali.
+- Cron `0 */6 * * *` UTC. Satu sync membaca 1 manifest + N bulan Firestore dengan konkurensi terbatas. Batas Free (10 ms CPU, 50 subrequest) **belum diukur di Cloudflare**; jika jumlah bulan mendekati ~40, sinkron bertahap diperlukan.
+- `POST /connector/signal`: hanya origin `https://www.mysalary.my.id` (override: env `TEACHING_SIGNAL_ORIGIN`), body `{idToken}` saja, UID dicocokkan dengan D1, cooldown 10 detik, batas 30/menit per isolate. CORS bukan autentikasi; token Firebase yang menentukan.

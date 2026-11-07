@@ -57,20 +57,22 @@ test('adapter serves embedded login but never directly exposes protected sources
   assert.equal((await worker.fetch(new Request('https://untrusted.example/login'), env)).status, 403);
 });
 
-test('Wrangler configuration embeds assets behind handler and requires no paid bindings', async () => {
+test('Wrangler configuration binds only the approved D1 Free database and cron', async () => {
   const config = JSON.parse(await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8'));
   assert.equal(config.main, 'cloud/worker.mjs');
   assert.equal(config.compatibility_date, '2026-11-06');
   assert.ok(config.compatibility_flags.includes('nodejs_compat'));
   assert.equal(config.build.command, 'node scripts/build-worker.mjs');
-  for (const field of ['assets', 'site', 'routes', 'account_id', 'kv_namespaces', 'r2_buckets', 'd1_databases', 'durable_objects', 'services', 'unsafe', 'vars']) {
+  assert.deepEqual(config.d1_databases, [{binding:'TEACHING_STATE', database_name:'charisna-teaching-state', database_id:'34d0a6ac-1651-4b9e-baa3-0b94b42910e6'}]);
+  assert.deepEqual(config.triggers, {crons:['0 */6 * * *']});
+  for (const field of ['assets', 'site', 'routes', 'account_id', 'kv_namespaces', 'r2_buckets', 'durable_objects', 'services', 'unsafe', 'vars']) {
     assert.equal(Object.hasOwn(config, field), false, field);
   }
   assert.equal(config.observability.enabled, false);
 });
 
 const sourceFiles = [
-  '../public/index.html', '../public/app.mjs', '../public/styles.css',
+  './overview.html', './overview.mjs', '../public/styles.css',
   './login.html', './login.mjs'
 ];
 

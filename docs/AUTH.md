@@ -1,5 +1,33 @@
 # Autentikasi khusus pemilik
 
+## Status terkini (7 November 2026)
+
+> Bagian di bawah blok ini adalah sejarah prototipe lokal (data sintetis, tanpa D1). Yang berlaku sekarang:
+>
+> - **Runtime nyata**: Cloudflare Worker `https://charisna-superapp.charisna-superapp.workers.dev/`, login owner via Supabase magic link. Demo lokal (`server.mjs`, `demo/`) tetap terpisah dan tidak disajikan oleh Worker.
+> - **Konektor MySalary**: token Firebase disimpan **terenkripsi** (AES-256-GCM, kunci dari `SESSION_SECRET`) di D1 `charisna-teaching-state`. Kontrak: `docs/TEACHING_PAY_CONNECTOR.md`.
+> - **Sinkron**: Cron `0 */6 * * *` UTC sebagai cadangan; pemicu cepat `POST /connector/signal` aktif hanya setelah patch MySalary (`patches/mysalary-superapp-signal.patch`) diterapkan dan dideploy oleh pemilik repo sumber.
+> - **Vercel lama** (`charisna-superapp.vercel.app`) mengembalikan HTTP 500 dan **bukan** aplikasi aktif. Jangan dipakai.
+> - Bukti live koneksi MySalary nyata, Cron nyata, dan sinyal cepat nyata: **belum ada** (lihat PROJECT_STATUS.md).
+
+
+> Status terkini: login SuperApp memakai magic link PKCE melalui email pemilik.
+
+## Alur aktif (7 November 2026)
+
+1. Pemilik membuka `/login` dan menekan **Kirim tautan masuk** sekali.
+2. `POST /auth/send-link` meminta magic link Supabase untuk email pemilik tetap.
+3. Browser menyimpan verifier PKCE dalam cookie `__Host-charisna-pkce`, `HttpOnly`, `Secure`, `SameSite=Lax`, maksimum 1 jam.
+4. Pemilik membuka email dan tautannya **di browser yang sama**. Callback `/auth/callback` menukar kode dengan verifier.
+5. Worker membaca `/auth/v1/user`, memeriksa email terverifikasi dan UUID pemilik, lalu membuat cookie sesi `__Host-charisna`, `HttpOnly`, `Secure`, `SameSite=Strict`, maksimum 15 menit.
+6. Setiap permintaan terlindungi memeriksa ulang user Supabase. Logout menghapus cookie lokal dan mencoba mencabut sesi upstream.
+
+Magic link PKCE adalah pilihan agen pada tahap implementasi sebelumnya; pemilik tidak memilih metode itu secara eksplisit. Pemilik telah melaporkan login email berhasil pada 7 November 2026. Pemeriksaan agen membuktikan permintaan tautan dari Chrome mendapat respons sukses, tetapi tidak menyaksikan layar dashboard setelah tautan dibuka.
+
+Cloudflare Workers tidak mendukung `fetch` dengan `redirect: 'error'`. Semua panggilan keluar memakai `redirect: 'manual'`; respons 3xx ditolak sebagai respons tidak sukses. Perubahan ini memperbaiki 503 pada pengiriman tautan dan mempertahankan larangan mengikuti pengalihan bersama header autentikasi.
+
+Bagian di bawah mencatat rancangan OTP numerik lama. `sendCode()` dan `verifyCode()` tidak ada pada kode aktif; gunakan `sendLink()` dan `exchangeCode()`.
+
 Modul `cloud/auth.mjs` hanya mengizinkan email terverifikasi
 `charisna.superapp@gmail.com`. Ini akses dashboard data sintetis, bukan koneksi
 sumber produksi, SQL, sinkronisasi transaksi, atau penyimpanan data bisnis.
@@ -24,7 +52,7 @@ Konfigurasi tidak aman menghasilkan `configured: false`. Login dan otorisasi
 mengembalikan 503 tanpa akses jaringan. Logout tetap menghapus cookie lokal.
 Cloudflare Workers memerlukan `nodejs_compat` untuk `node:crypto` dan Buffer.
 
-## Alur dan kontrak
+## Riwayat OTP numerik (tidak aktif)
 
 `createOwnerAuth({ env, fetchImpl, now })` menerima snapshot konfigurasi,
 implementasi fetch, dan jam milidetik; default memakai environment, fetch, Date.now.
@@ -75,20 +103,16 @@ pengiriman email Auth **2 email per jam per proyek**. Menyetel OWNER_EMAIL tidak
 membuat alamat itu otomatis menjadi anggota organisasi. Periksa konfigurasi dan
 limit proyek di dashboard sebelum menguji email nyata. Jangan mengaktifkan layanan
 berbayar untuk melewati batas tanpa persetujuan. Jika email pemilik tidak diizinkan
-oleh default SMTP, login nyata belum siap; tes lokal tidak membuktikan pengiriman.
+oleh default SMTP, pengiriman dapat gagal; tes lokal tidak membuktikan pengiriman.
 
-Template email OTP harus menampilkan `{{ .Token }}`, bukan hanya magic link.
-Pastikan panjang OTP di pengaturan provider sesuai 6–10 digit yang didukung UI dan
-server. Pengaturan SMTP/template/anggota organisasi tidak diubah oleh modul ini.
+Catatan historis: rancangan OTP numerik sempat memerlukan template `{{ .Token }}`.
+Alur aktif memakai magic link bawaan; tidak memerlukan perubahan SMTP atau template.
 
 Pemeriksaan dashboard proyek pada 2026-11-07 menemukan template bawaan `Your sign-in link`
 yang hanya menampilkan tautan `Sign in`, tanpa kode numerik. Dashboard mewajibkan
 custom SMTP untuk menyunting template; alternatif menu adalah Upgrade to Pro.
-Paket tetap Free dan tidak diubah. Karena aplikasi ini hanya menerima kode numerik,
-login online **belum siap**. Siapkan custom SMTP yang memenuhi target Rp0 dan
-verifikasi template/pengiriman, atau implementasikan alur autentikasi alternatif
-melalui perubahan terpisah yang diuji dan direview. Jangan mengaktifkan Pro untuk
-melewati prasyarat ini.
+Paket tetap Free dan tidak diubah. Hambatan OTP numerik selesai setelah alur
+magic link PKCE aktif. Jangan aktifkan Pro untuk kebutuhan ini.
 
 Handler menerapkan cooldown pengiriman 60 detik dan anggaran verifikasi 9 percobaan
 per 15 menit **per instance**. Anggaran lokal ini bukan rate limiter global,

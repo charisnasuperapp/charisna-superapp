@@ -61,7 +61,7 @@ export function createOwnerAuth({ env = process.env, fetchImpl = fetch, now = ()
   }
   async function provider(path, body) {
     return fetchImpl(`${env.SUPABASE_URL}/auth/v1/${path}`, {
-      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(5000),
+      method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(5000),
       headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
@@ -98,7 +98,7 @@ export function createOwnerAuth({ env = process.env, fetchImpl = fetch, now = ()
   }
   async function getUser(accessToken) {
     const response = await fetchImpl(`${env.SUPABASE_URL}/auth/v1/user`, {
-      method: 'GET', redirect: 'error', signal: AbortSignal.timeout(5000),
+      method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(5000),
       headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${accessToken}` }
     });
     if (!response.ok) {
@@ -173,7 +173,7 @@ export function createOwnerAuth({ env = process.env, fetchImpl = fetch, now = ()
       try {
         const session = readSession(request);
         const response = await fetchImpl(`${env.SUPABASE_URL}/auth/v1/logout?scope=global`, {
-          method: 'POST', redirect: 'error', signal: AbortSignal.timeout(5000),
+          method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(5000),
           headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${session.accessToken}` }
         });
         await response.body?.cancel();
