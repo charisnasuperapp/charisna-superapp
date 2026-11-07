@@ -1,1 +1,91 @@
-<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CHARISNA — Keamanan akun</title><link rel="stylesheet" href="/styles.css"><script type="module" src="/device.mjs"></script></head><body class="login-page"><header class="topbar"><a class="brand" href="/">CHARISNA <small>SUPERAPP</small></a><a class="button secondary" href="/">Ringkasan</a></header><main class="login-main"><section class="login-card"><p class="eyebrow">KHUSUS PEMILIK</p><h1>Keamanan akun</h1><p class="login-description">Email: charisna.superapp@gmail.com. Sandi dan data biometrik tidak disimpan di kode aplikasi.</p><h2>Atur sandi login</h2><form id="set-password-form"><label for="new-password">Sandi baru</label><input id="new-password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required><label for="confirm-password">Ulangi sandi baru</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required><button id="save-password" class="button primary" type="submit">Simpan sandi</button></form><h2>Buka kunci perangkat</h2><p class="field-hint">Aktifkan sekali pada setiap perangkat pribadi. Setelah 15 menit, akses data dikunci di server sampai diverifikasi kembali. PIN Windows Hello, sidik jari, atau pengenalan wajah mengikuti fitur perangkat. SuperApp tidak membaca atau menyimpan PIN, sidik jari, maupun wajah.</p><button id="register-device" class="button primary" type="button">Aktifkan PIN / biometrik</button><p class="field-hint">Sesi akun bertahan sampai 30 hari tanpa aktivitas. Jika sesi habis, cookie dihapus, atau Anda keluar, masuk kembali dengan email dan sandi. Jangan aktifkan pada perangkat bersama.</p><button id="revoke-device" class="button secondary" type="button">Hapus semua kunci perangkat</button><p id="device-status" role="status" aria-live="polite"></p></section></main></body></html>
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CHARISNA — Keamanan & Pengaturan</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/device.mjs"></script>
+</head>
+<body class="login-page">
+<header class="topbar">
+  <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">C</span><span>CHARISNA <small>SUPERAPP</small></span></a>
+  <div class="identity">
+    <div class="lang-switch" role="group" aria-label="Bahasa / Language">
+      <button type="button" class="lang-btn active" data-lang="id">ID</button>
+      <button type="button" class="lang-btn" data-lang="en">EN</button>
+    </div>
+    <a class="button secondary" href="/" id="back-link">Ringkasan</a>
+  </div>
+</header>
+<main class="login-main" style="max-width:680px;grid-template-columns:1fr">
+<section class="login-card">
+  <p class="eyebrow" id="sec-eyebrow">KHUSUS PEMILIK</p>
+  <h1 id="sec-title">Keamanan & Pengaturan</h1>
+  <p class="login-description" id="sec-desc">Email: charisna.superapp@gmail.com. Sandi dan data biometrik tidak disimpan di kode aplikasi.</p>
+
+  <h2 id="sec-pass-title">Atur sandi login</h2>
+  <form id="set-password-form">
+    <label for="new-password" id="lbl-new-password">Sandi baru</label>
+    <input id="new-password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+    <label for="confirm-password" id="lbl-confirm-password">Ulangi sandi baru</label>
+    <input id="confirm-password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+    <button id="save-password" class="button primary" type="submit">Simpan sandi</button>
+  </form>
+
+  <div class="login-divider"></div>
+
+  <h2 id="sec-device-title">Buka kunci perangkat</h2>
+  <p class="field-hint" id="sec-device-hint1">Aktifkan sekali pada setiap perangkat pribadi. Setelah 15 menit, akses data dikunci di server sampai diverifikasi kembali. PIN Windows Hello, sidik jari, atau pengenalan wajah mengikuti fitur perangkat. SuperApp tidak membaca atau menyimpan PIN, sidik jari, maupun wajah.</p>
+  <button id="register-device" class="button primary" type="button">Aktifkan PIN / biometrik</button>
+  <p class="field-hint" id="sec-device-hint2">Sesi akun bertahan sampai 30 hari tanpa aktivitas. Jika sesi habis, cookie dihapus, atau Anda keluar, masuk kembali dengan email dan sandi. Jangan aktifkan pada perangkat bersama.</p>
+  <button id="revoke-device" class="button secondary" type="button">Hapus semua kunci perangkat</button>
+  <p id="device-status" role="status" aria-live="polite"></p>
+
+  <!-- Catatan Pembaruan / Changelog -->
+  <section class="changelog-section" aria-labelledby="changelog-heading">
+    <div class="changelog-header">
+      <h2 id="changelog-heading">Catatan Pembaruan</h2>
+      <span class="tag-badge">v2.3 Aktif</span>
+    </div>
+    <div class="changelog-timeline" id="changelog-list">
+      <article class="changelog-entry">
+        <div class="changelog-tag"><span>v2.3</span><span class="tag-badge">8 Nov 2026</span></div>
+        <div class="changelog-title" id="cl-v23-title">Pembaruan Multi-Bahasa, Rekap Lengkap & Desain Modern</div>
+        <ul class="changelog-list" id="cl-v23-list">
+          <li><strong>Dukungan Multi-Bahasa (ID/EN)</strong>: Tombol pengubah bahasa instan antara Bahasa Indonesia dan English di semua halaman.</li>
+          <li><strong>Rekap Bulanan Lengkap (12 Bulan)</strong>: Menampilkan seluruh bulan per tahun dalam kotak gulir 5 baris dengan sticky header dan penanda intensitas jam kerja.</li>
+          <li><strong>Microinteraction & Skeleton Shimmer</strong>: Transisi tactile tombol, status visual indikator, dan animasi pemuatan shimmer di seluruh modul ringkasan.</li>
+          <li><strong>Catatan Rilis (Changelog)</strong>: Dokumentasi pembaruan langsung di menu pengaturan untuk memantau fitur terbaru.</li>
+        </ul>
+      </article>
+      <article class="changelog-entry">
+        <div class="changelog-tag"><span>v2.2</span><span class="tag-badge">7 Nov 2026</span></div>
+        <div class="changelog-title" id="cl-v22-title">Buka Kunci WebAuthn & Sesi 30 Hari</div>
+        <ul class="changelog-list" id="cl-v22-list">
+          <li><strong>WebAuthn & Biometrik Perangkat</strong>: Buka kunci via Windows Hello, Touch ID, dan Face ID tanpa menyimpan biometrik di server.</li>
+          <li><strong>Perpanjangan Sesi Aman</strong>: Sesi cookie terenkripsi AES-256-GCM dengan sliding refresh 30 hari.</li>
+          <li><strong>Compare-and-Swap (CAS)</strong>: Pencegahan race condition dan update atomic pada database Cloudflare D1.</li>
+        </ul>
+      </article>
+      <article class="changelog-entry">
+        <div class="changelog-tag"><span>v2.1</span><span class="tag-badge">7 Nov 2026</span></div>
+        <div class="changelog-title" id="cl-v21-title">Sinyal Sinkron Cepat MySalary & Edge Runtime</div>
+        <ul class="changelog-list" id="cl-v21-list">
+          <li><strong>Webhook /connector/signal</strong>: Pembaruan data otomatis beberapa detik setelah penyimpanan di MySalary.</li>
+          <li><strong>Cloudflare Workers $0 Cost</strong>: Runtime serverless hemat daya dengan keamanan perimeter CSP dan HSTS.</li>
+        </ul>
+      </article>
+      <article class="changelog-entry">
+        <div class="changelog-tag"><span>v2.0</span><span class="tag-badge">Nov 2026</span></div>
+        <div class="changelog-title" id="cl-v20-title">Arsitektur Multi-Bisnis Terpadu</div>
+        <ul class="changelog-list" id="cl-v20-list">
+          <li><strong>Multi-Konektor Usaha</strong>: Integrasi Bumi Makmur POS, CHARISNA KOST, dan Money Management tanpa mencampuradukkan omzet operasional dengan dana pribadi.</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+</section>
+</main>
+</body>
+</html>

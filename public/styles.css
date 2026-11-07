@@ -97,7 +97,37 @@ button:focus-visible,a:focus-visible,input:focus-visible{
   transform:scale(1.04);
   box-shadow:0 5px 14px rgba(25,82,68,0.28);
 }
-.identity{display:flex;align-items:center;gap:16px;font-size:13px}
+.identity{display:flex;align-items:center;gap:14px;font-size:13px}
+
+/* Language Switcher */
+.lang-switch{
+  display:inline-flex;
+  align-items:center;
+  background:#edf3ee;
+  border:1px solid var(--line);
+  border-radius:20px;
+  padding:2px;
+  gap:2px;
+}
+.lang-btn{
+  border:none;
+  background:transparent;
+  padding:4px 9px;
+  font-size:11px;
+  font-weight:700;
+  border-radius:16px;
+  color:var(--muted);
+  cursor:pointer;
+  transition:all 0.15s ease;
+  line-height:1;
+}
+.lang-btn:hover:not(.active){color:var(--ink)}
+.lang-btn.active{
+  background:var(--white);
+  color:var(--teal);
+  box-shadow:0 1px 3px rgba(20,40,38,0.1);
+}
+
 .demo-label{
   padding:5px 12px;
   border:1px solid var(--teal-border);
@@ -110,7 +140,7 @@ button:focus-visible,a:focus-visible,input:focus-visible{
 }
 .role{
   border-left:1px solid var(--line);
-  padding-left:16px;
+  padding-left:14px;
   color:var(--muted);
   font-weight:500;
 }
@@ -704,6 +734,89 @@ dd{margin:0;text-align:right;font-weight:500}
 }
 
 /* ======================================================== */
+/* CHANGELOG TIMELINE (SETTINGS)                            */
+/* ======================================================== */
+.changelog-section{
+  margin-top:38px;
+  border-top:1px solid var(--line);
+  padding-top:28px;
+}
+.changelog-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:22px;
+}
+.changelog-header h2{
+  font-size:18px;
+  margin:0;
+  color:var(--ink);
+}
+.changelog-timeline{
+  display:flex;
+  flex-direction:column;
+  gap:26px;
+  position:relative;
+  padding-left:22px;
+  border-left:2px solid #e1ebe5;
+  margin-left:8px;
+}
+.changelog-entry{
+  position:relative;
+}
+.changelog-entry::before{
+  content:"";
+  position:absolute;
+  left:-29px;
+  top:4px;
+  width:12px;
+  height:12px;
+  border-radius:50%;
+  background:var(--teal);
+  border:2.5px solid var(--white);
+  box-shadow:0 0 0 2px var(--teal-border);
+}
+.changelog-entry:not(:first-child)::before{
+  background:#9db3a7;
+  box-shadow:none;
+}
+.changelog-tag{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  font-size:12px;
+  font-weight:700;
+  color:var(--teal);
+  margin-bottom:6px;
+}
+.changelog-tag .tag-badge{
+  font-size:10px;
+  background:var(--teal-surface);
+  border:1px solid var(--teal-border);
+  padding:2px 7px;
+  border-radius:10px;
+}
+.changelog-title{
+  font-size:14px;
+  font-weight:600;
+  color:var(--ink);
+  margin:0 0 8px;
+}
+.changelog-list{
+  margin:0;
+  padding-left:18px;
+  font-size:12.5px;
+  color:var(--muted);
+  line-height:1.65;
+}
+.changelog-list li{
+  margin-bottom:5px;
+}
+.changelog-list strong{
+  color:var(--ink);
+}
+
+/* ======================================================== */
 /* LOGIN, UNLOCK, & SECURITY CARDS                          */
 /* ======================================================== */
 #logout-form{margin:0}
@@ -922,8 +1035,8 @@ dd{margin:0;text-align:right;font-weight:500}
   .brand{font-size:15px;gap:9px}
   .brand small{font-size:8px;letter-spacing:2.5px}
   .brand-mark{width:32px;height:36px;font-size:22px}
-  .identity{gap:10px;font-size:11.5px}
-  .role{padding-left:10px}
+  .identity{gap:8px;font-size:11px}
+  .role{padding-left:8px}
   .demo-label{padding:4px 9px;font-size:11px}
   main{padding:28px 16px 0}
   .page-heading{display:block;margin-bottom:22px}
