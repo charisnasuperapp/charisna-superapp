@@ -57,9 +57,14 @@ export function createMoneyConnector({env,now=()=>Date.now()}={}) {
     if(!configured)return result(503,{error:'Konektor belum tersedia.'});
     try {
       const raw=await read(ID); if(!raw)return result(200,{state:'not_connected'});
-      const data=open(raw);
+      let data;
+      try {data=open(raw);}
+      catch {
+        await db.prepare('DELETE FROM connector_state WHERE id = ? AND payload = ?').bind(ID,raw).run();
+        return result(200,{state:'needs_reconnect'});
+      }
       return result(200,{state:now()-data.receivedAt>STALE?'stale':'connected',snapshot:data.snapshot,received_at:new Date(data.receivedAt).toISOString()});
-    } catch {return result(200,{state:'needs_reconnect'});}
+    } catch {return result(503,{error:'Ringkasan sementara tidak tersedia.'});}
   }
   async function disconnect() {
     if(!configured)return result(503,{error:'Konektor belum tersedia.'});

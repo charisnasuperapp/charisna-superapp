@@ -57,6 +57,16 @@ test('expired pairing and old write after disconnect cannot restore data',async(
   assert.notEqual(old,updated);
 });
 
+test('unreadable MONEY state requests reconnect and D1 failure stays 503',async()=>{
+  const f=fixture(),c=f.connector;
+  f.rows.set('money:owner','old-key-ciphertext');
+  assert.equal((await c.overview()).body.state,'needs_reconnect');
+  assert.equal(f.rows.has('money:owner'),false);
+  const broken={prepare(){throw Error('d1 down');}};
+  const down=createMoneyConnector({env:{TEACHING_STATE:broken,SESSION_SECRET:'x'.repeat(64),SITE_ORIGIN:'https://owner.example'}});
+  assert.equal((await down.overview()).status,503);
+});
+
 test('financial overview is owner-only; source push is origin-bound',async()=>{
   let reads=0,pushes=0;
   const money={configured:true,async overview(){reads++;return{status:200,body:{state:'not_connected'}};},async push(){pushes++;return{status:200,body:{state:'connected'}};}};
