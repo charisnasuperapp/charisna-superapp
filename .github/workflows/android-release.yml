@@ -28,13 +28,10 @@ jobs:
         run: npm ci
 
       - name: Sync Capacitor (generates cordova plugins module + web assets)
-        run: npx cap sync android --inline
-
-      - name: Copy required generated assets ignored by git
         run: |
           mkdir -p android/app/src/main/assets/public
           cp www/index.html android/app/src/main/assets/public/index.html
-          test -f android/app/src/main/assets/capacitor.plugins.json
+          npx cap sync android --inline
 
       - name: Syntax check and full test suite
         run: |
