@@ -27,8 +27,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Sync Capacitor (generates cordova plugins module)
-        run: npx cap sync android
+      - name: Sync Capacitor (generates cordova plugins module + web assets)
+        run: npx cap sync android --inline
+
+      - name: Copy required generated assets ignored by git
+        run: |
+          mkdir -p android/app/src/main/assets/public
+          cp www/index.html android/app/src/main/assets/public/index.html
+          test -f android/app/src/main/assets/capacitor.plugins.json
 
       - name: Syntax check and full test suite
         run: |
