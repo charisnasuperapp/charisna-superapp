@@ -82,7 +82,9 @@ test('asset build embeds only explicit UI sources, byte for byte', async () => {
   const {assets, loadAsset} = await import(`../cloud/assets.mjs?test=${Date.now()}`);
   assert.deepEqual(Object.keys(assets).sort(), [...sourceFiles].sort());
   for (const file of sourceFiles) {
-    assert.equal(await loadAsset(file), await readFile(new URL(file, new URL('../cloud/', import.meta.url)), 'utf8'));
+    // The build normalizes CRLF to LF; compare on that canonical form.
+    const expected = (await readFile(new URL(file, new URL('../cloud/', import.meta.url)), 'utf8')).replace(/\r\n/g, '\n');
+    assert.equal(await loadAsset(file), expected);
   }
   for (const file of ['../.env', './auth.mjs', '../demo/fixtures.json', '__proto__', 'constructor']) {
     assert.throws(() => loadAsset(file), /Unknown embedded asset/);

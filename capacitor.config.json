@@ -1,0 +1,13 @@
+{
+  "appId": "id.charisna.superapp",
+  "appName": "CHARISNA SuperApp",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "url": "https://zen.charisna-superapp.workers.dev",
+    "androidScheme": "https",
+    "cleartext": false
+  }
+}

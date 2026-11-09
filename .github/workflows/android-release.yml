@@ -1,0 +1,64 @@
+name: android-release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax check and full test suite
+        run: |
+          node scripts/check.mjs
+          node --test tests/*.test.mjs
+
+      - name: Build universal APK (all ABIs, phone + tablet)
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Prepare signing-free artifact name
+        run: |
+          TAG="${GITHUB_REF_NAME:-local}"
+          mkdir -p release
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk \
+             "release/charisna-superapp-${TAG}-universal.apk"
+
+      - name: Upload build artifact (always)
+        uses: actions/upload-artifact@v4
+        with:
+          name: charisna-superapp-apk
+          path: release/*.apk
+
+      - name: Attach APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" release/*.apk --clobber \
+            --repo "${GITHUB_REPOSITORY}" || \
+          gh release create "${GITHUB_REF_NAME}" release/*.apk \
+            --title "${GITHUB_REF_NAME}" \
+            --notes "CHARISNA SuperApp — web (Cloudflare Worker) + Android universal APK." \
+            --repo "${GITHUB_REPOSITORY}"
