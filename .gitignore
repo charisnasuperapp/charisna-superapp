@@ -21,3 +21,5 @@ android/build/
 android/local.properties
 android/.idea/
 android/capacitor-cordova-android-plugins/
+.keystores/
+android/charisna-release.keystore
