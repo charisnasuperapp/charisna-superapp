@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Sync Capacitor (generates cordova plugins module)
+        run: npx cap sync android
+
       - name: Syntax check and full test suite
         run: |
           node scripts/check.mjs
