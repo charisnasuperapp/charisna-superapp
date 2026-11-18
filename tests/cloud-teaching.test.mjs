@@ -180,6 +180,27 @@ test('daily rounding matches the MySalary detailed report', () => {
   assert.equal(summarizeTeachingMonth(month, monthKey).pay_minor, '776');
 });
 
+test('monthly overtime tier (Option A) matches MySalary when stored in entries[1]', () => {
+  const monthKey = '2026-11';
+  const entries = {};
+  for (let day = 1; day <= 23; day++) entries[String(day)] = { hours: 5 };
+  entries['1'].overtimeEnabled = true;
+  entries['1'].overtimeThresholdHours = 100;
+  entries['1'].overtimeHourlyRate = 12;
+  const over = summarizeTeachingMonth({ monthKey, hourlyRate: 10, entries }, monthKey);
+  assert.equal(over.hours, 115);
+  assert.equal(over.teaching_days, 23);
+  assert.equal(over.pay_minor, '118000');
+
+  const underEntries = {
+    '1': { hours: 10, overtimeEnabled: true, overtimeThresholdHours: 100, overtimeHourlyRate: 12 },
+    '2': { hours: 10 },
+  };
+  const under = summarizeTeachingMonth({ monthKey, hourlyRate: 10, entries: underEntries }, monthKey);
+  assert.equal(under.hours, 20);
+  assert.equal(under.pay_minor, '20000');
+});
+
 test('rotated secret treats only unreadable ciphertext as reconnect and clears that row', async () => {
   const s=setup();
   await s.connector.connect({idToken,refreshToken});

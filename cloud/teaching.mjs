@@ -19,6 +19,8 @@ function decode(value) {
   if ('integerValue' in value) return Number(value.integerValue);
   if ('doubleValue' in value) return Number(value.doubleValue);
   if ('booleanValue' in value) return value.booleanValue;
+  if ('nullValue' in value) return null;
+  if ('timestampValue' in value) return value.timestampValue;
   if ('arrayValue' in value) return (value.arrayValue.values || []).map(decode);
   if ('mapValue' in value) return Object.fromEntries(Object.entries(value.mapValue.fields || {}).map(([key, field]) => [key, decode(field)]));
   throw Error('bad field type');
@@ -30,19 +32,34 @@ function fields(document) {
 export function summarizeTeachingMonth(month, key) {
   if (!MONTH.test(key) || month?.monthKey !== key || !Number.isFinite(month.hourlyRate) || month.hourlyRate < 0
       || !month.entries || typeof month.entries !== 'object') throw Error('bad month');
-  let hours = 0;
+  let hoursHundredths = 0;
   let days = 0;
   let cents = 0;
   for (const [day, entry] of Object.entries(month.entries)) {
     if (!/^(?:[1-9]|[12][0-9]|3[01])$/.test(day) || !entry || !Number.isFinite(entry.hours)
         || entry.hours < 0 || entry.hours > 24) throw Error('bad entry');
     const hundredths = Math.round(entry.hours * 100);
-    hours += hundredths / 100;
+    hoursHundredths += hundredths;
     if (hundredths > 0) days++;
     const dailyCents = hundredths * month.hourlyRate;
     cents += Math.round(dailyCents + Number.EPSILON * dailyCents);
   }
-  hours = Math.round(hours * 100) / 100;
+  const dayOne = month.entries['1'] || month.entries[1];
+  const overtimeEnabled = Boolean(month.overtimeEnabled ?? dayOne?.overtimeEnabled ?? false);
+  if (overtimeEnabled) {
+    const rawThreshold = Number(month.overtimeThresholdHours ?? dayOne?.overtimeThresholdHours ?? 100);
+    const rawOvertimeRate = Number(month.overtimeHourlyRate ?? dayOne?.overtimeHourlyRate ?? 12);
+    if (!Number.isFinite(rawThreshold) || rawThreshold < 0 || rawThreshold > 744
+        || !Number.isFinite(rawOvertimeRate) || rawOvertimeRate < 0) throw Error('bad overtime');
+    const thresholdHundredths = Math.round(Math.round(rawThreshold * 100));
+    const overtimeHundredths = Math.max(0, hoursHundredths - thresholdHundredths);
+    if (overtimeHundredths > 0) {
+      const overtimeRate = Math.round(rawOvertimeRate * 100) / 100;
+      const deltaCents = overtimeHundredths * (overtimeRate - month.hourlyRate);
+      cents = Math.max(0, cents + Math.round(deltaCents + Number.EPSILON * deltaCents));
+    }
+  }
+  const hours = hoursHundredths / 100;
   if (!Number.isSafeInteger(cents) || cents < 0) throw Error('unsafe pay');
   return { month: key, hours, teaching_days: days, pay_minor: String(cents), currency: 'USD', scale: 2 };
 }
