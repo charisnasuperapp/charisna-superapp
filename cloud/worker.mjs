@@ -27,6 +27,7 @@ export default {
   },
   scheduled(_event, env, context) {
     const teaching = createTeachingConnector({env});
-    context.waitUntil(teaching.scheduledSync());
+    const auth = createOwnerAuth({env});
+    context.waitUntil(Promise.allSettled([teaching.scheduledSync(), auth.keepAlive()]));
   }
 };

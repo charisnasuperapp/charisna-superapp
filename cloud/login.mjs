@@ -10,7 +10,7 @@ export function createLoginController({fetch:request=globalThis.fetch,now=Date.n
    try{
     const response=await request('/auth/login',postOptions({password}));
     if(response.ok){onSuccess();return;}
-    error=response.status===429?'Terlalu banyak percobaan. Tunggu 15 menit, lalu coba lagi.':response.status===401||response.status===403?'Sandi atau email tidak sesuai. Coba lagi atau gunakan pemulihan akun.':'Permintaan belum dapat diproses. Coba lagi nanti.';
+    error=response.status===429?'Terlalu banyak percobaan. Tunggu 15 menit, lalu coba lagi.':response.status===401||response.status===403?'Sandi atau email tidak sesuai. Coba lagi atau gunakan pemulihan akun.':response.status===503?'Layanan autentikasi sedang tidak tersedia, permintaan belum dapat diproses. Coba lagi sebentar lagi.':'Permintaan belum dapat diproses. Coba lagi nanti.';
    }catch{error='Permintaan belum dapat diproses. Periksa koneksi internet.';}
    finally{busy=false;onChange(controller.state);}
   },
@@ -63,7 +63,11 @@ export function mountLogin({document=globalThis.document,window=globalThis.windo
    summary: 'Belum punya sandi atau lupa sandi?',
    hint: 'Gunakan tautan pemulihan sekali, lalu atur sandi dari pengaturan keamanan. Buka tautan di peramban yang sama.',
    privacyNote: 'Akses diverifikasi oleh server. Data MySalary hanya dibaca setelah akun sumber dihubungkan.',
-   footerNote: 'Data MySalary · hanya baca · khusus pemilik'
+   footerNote: 'Data MySalary · hanya baca · khusus pemilik',
+   btnSendLink: 'Kirim tautan masuk',
+   btnSending: 'Mohon tunggu…',
+   cooldownIdle: 'Tautan hanya dikirim ke email pemilik terdaftar.',
+   cooldownWait: s => `Kirim ulang tersedia dalam ${s} detik.`
   },
   en: {
    demoLabel: 'Live source',
@@ -81,11 +85,18 @@ export function mountLogin({document=globalThis.document,window=globalThis.windo
    summary: 'No password or forgot password?',
    hint: 'Use a one-time recovery link, then set your password in security settings. Open link in this browser.',
    privacyNote: 'Access verified by server. MySalary data is only read after connecting your source account.',
-   footerNote: 'MySalary data · read-only · owner access'
+   footerNote: 'MySalary data · read-only · owner access',
+   btnSendLink: 'Send login link',
+   btnSending: 'Please wait…',
+   cooldownIdle: 'Link is sent only to the registered owner email.',
+   cooldownWait: s => `Resend available in ${s} seconds.`
   }
  };
 
+ let currentLang = getLang();
+
  function applyLang(lang) {
+  currentLang = lang;
   const t = i18n[lang] || i18n.id;
   if ($('#login-demo-label')) $('#login-demo-label').textContent = t.demoLabel;
   if ($('#login-intro-eyebrow')) $('#login-intro-eyebrow').textContent = t.eyebrow;
@@ -113,30 +124,32 @@ export function mountLogin({document=globalThis.document,window=globalThis.windo
   }
  }
 
+ function render(state){
+  const t = i18n[currentLang] || i18n.id;
+  $('#password-login').disabled=state.busy;
+  $('#password-form').setAttribute('aria-busy',String(state.busy));
+  $('#send-link').disabled=state.busy||state.cooldown>0;
+  $('#send-link-form').setAttribute('aria-busy',String(state.busy));
+  $('#send-cooldown').textContent=state.cooldown?t.cooldownWait(state.cooldown):t.cooldownIdle;
+  $('#send-link').textContent=state.busy?t.btnSending:t.btnSendLink;
+  if($('#login-status').textContent!==state.message)$('#login-status').textContent=state.message;
+  if($('#login-error').textContent!==state.error)$('#login-error').textContent=state.error;
+ }
+ const failed=new URLSearchParams(window.location.search).has('error');
+ const controller=createLoginController({fetch,now,onChange:render,onSuccess:()=>window.location.replace('/'),initialError:failed?'Tautan tidak valid, kedaluwarsa, atau dibuka di peramban lain. Minta tautan baru.':''});
+
  if (document.querySelectorAll) {
   document.querySelectorAll('.lang-btn').forEach(btn => {
    btn.addEventListener('click', () => {
     const chosen = btn.getAttribute('data-lang');
     setLang(chosen);
     applyLang(chosen);
+    render(controller.state);
    });
   });
  }
 
- applyLang(getLang());
-
- function render(state){
-  $('#password-login').disabled=state.busy;
-  $('#password-form').setAttribute('aria-busy',String(state.busy));
-  $('#send-link').disabled=state.busy||state.cooldown>0;
-  $('#send-link-form').setAttribute('aria-busy',String(state.busy));
-  $('#send-cooldown').textContent=state.cooldown?`Kirim ulang tersedia dalam ${state.cooldown} detik.`:'Tautan hanya dikirim ke email pemilik terdaftar.';
-  $('#send-link').textContent=state.busy?'Mohon tunggu…':'Kirim tautan masuk';
-  if($('#login-status').textContent!==state.message)$('#login-status').textContent=state.message;
-  if($('#login-error').textContent!==state.error)$('#login-error').textContent=state.error;
- }
- const failed=new URLSearchParams(window.location.search).has('error');
- const controller=createLoginController({fetch,now,onChange:render,onSuccess:()=>window.location.replace('/'),initialError:failed?'Tautan tidak valid, kedaluwarsa, atau dibuka di peramban lain. Minta tautan baru.':''});
+ applyLang(currentLang);
  $('#password-form').addEventListener('submit',async event=>{
   event.preventDefault();const password=$('#password').value;$('#password').value='';await controller.signIn(password);
  });

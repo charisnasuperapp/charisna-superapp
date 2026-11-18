@@ -328,6 +328,21 @@ export function createOwnerAuth({ env = process.env, fetchImpl = fetch, now = ()
     }
     return { status: 200, body: { ok: true, revoked }, cookie: clearCookie() };
   }
+  async function keepAlive() {
+    if (!configured) return { ok: false, skipped: true };
+    const headers = { apikey: env.SUPABASE_PUBLISHABLE_KEY };
+    const ping = async path => {
+      const response = await fetchImpl(`${env.SUPABASE_URL}/${path}`, {
+        method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(5000), headers
+      });
+      await response.body?.cancel();
+      return response.ok;
+    };
+    try {
+      const [authRes, restRes] = await Promise.allSettled([ping('auth/v1/health'), ping('rest/v1/')]);
+      return { ok: (authRes.status === 'fulfilled' && authRes.value) || (restRes.status === 'fulfilled' && restRes.value) };
+    } catch { return { ok: false }; }
+  }
   const clearPkceCookie = () => `${PKCE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-  return { configured, sendLink, exchangeCode, signInPassword, setPassword, authorize, authorizeIdentity, enableDeviceLock, unlockDevice, disableDeviceLock, clearCookie, clearPkceCookie, logout };
+  return { configured, sendLink, exchangeCode, signInPassword, setPassword, authorize, authorizeIdentity, enableDeviceLock, unlockDevice, disableDeviceLock, clearCookie, clearPkceCookie, logout, keepAlive };
 }

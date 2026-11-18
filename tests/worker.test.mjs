@@ -90,3 +90,31 @@ test('asset build embeds only explicit UI sources, byte for byte', async () => {
     assert.throws(() => loadAsset(file), /Unknown embedded asset/);
   }
 });
+
+test('scheduled cron runs Supabase keep-alive pings with publishable key and tolerates failures', async () => {
+  const {default: worker} = await workerModule();
+  const env = config();
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    calls.push({url: String(url), method: init?.method, apikey: init?.headers?.apikey, redirect: init?.redirect});
+    return new Response('ok', {status: 200});
+  };
+  try {
+    const waited = [];
+    worker.scheduled({}, env, {waitUntil: p => waited.push(p)});
+    assert.equal(waited.length, 1);
+    await Promise.all(waited);
+    const urls = calls.map(c => c.url).sort();
+    assert.deepEqual(urls, [`${env.SUPABASE_URL}/auth/v1/health`, `${env.SUPABASE_URL}/rest/v1/`]);
+    for (const c of calls) {
+      assert.equal(c.method, 'GET');
+      assert.equal(c.apikey, env.SUPABASE_PUBLISHABLE_KEY);
+      assert.equal(c.redirect, 'manual');
+    }
+    calls.length = 0;
+    worker.scheduled({}, {}, {waitUntil: p => waited.push(p)});
+    await Promise.all(waited);
+    assert.equal(calls.length, 0);
+  } finally { globalThis.fetch = realFetch; }
+});
