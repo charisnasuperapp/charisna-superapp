@@ -174,16 +174,18 @@ test('signal endpoint: exact MySalary origin, preflight, no cookie needed, no ex
  const token='t'.repeat(40);
  const post=(headers,body)=>handle(request('/connector/signal',{method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify(body)}));
  for(const o of [undefined,'https://evil.example','https://mysalary.my.id',origin]){
-  const res=await post(o?{origin:o}:{}, {idToken:token});assert.equal(res.status,403,String(o));assert.equal(res.headers.get('access-control-allow-origin'),null);
+  const res=await post(o?{origin:o}:{}, {signalKey:token});assert.equal(res.status,403,String(o));assert.equal(res.headers.get('access-control-allow-origin'),null);
  }
  assert.equal(seen.length,0);
  const pre=await handle(request('/connector/signal',{method:'OPTIONS',headers:{origin:mysalary}}));
  assert.equal(pre.status,204);assert.equal(pre.headers.get('access-control-allow-origin'),mysalary);assert.equal(pre.headers.get('access-control-allow-methods'),'POST');
  assert.equal((await handle(request('/connector/signal',{method:'OPTIONS',headers:{origin:'https://evil.example'}}))).status,403);
- const ok=await post({origin:mysalary},{idToken:token});
+ const ok=await post({origin:mysalary},{signalKey:token});
  assert.equal(ok.status,200);assert.equal(ok.headers.get('access-control-allow-origin'),mysalary);assert.deepEqual(await ok.json(),{accepted:true});
  assert.deepEqual(seen,[token]);
- assert.equal((await post({origin:mysalary},{idToken:token,amount:1})).status,400);
+ assert.equal((await post({origin:mysalary},{idToken:token})).status,400);
+ assert.equal((await post({origin:'https://teaching-pay-audit.vercel.app'},{signalKey:token})).status,200);
+ assert.equal((await post({origin:mysalary},{signalKey:token,amount:1})).status,400);
  assert.equal((await handle(request('/connector/signal',{method:'GET',headers:{origin:mysalary}}))).status,405);
  const text=await handle(request('/connector/signal',{method:'POST',headers:{origin:mysalary,'content-type':'text/plain'},body:'x'}));
  assert.equal(text.status,415);
@@ -192,9 +194,9 @@ test('signal endpoint: exact MySalary origin, preflight, no cookie needed, no ex
 test('signal endpoint is throttled per isolate and 503 when connector missing',async()=>{
  const mysalary='https://www.mysalary.my.id';
  const handle=await make(baseAuth,{configured:true,signal:async()=>({status:202,body:{accepted:true}})});
- const call=()=>handle(request('/connector/signal',{method:'POST',headers:{origin:mysalary,'content-type':'application/json'},body:JSON.stringify({idToken:'t'.repeat(40)})}));
+ const call=()=>handle(request('/connector/signal',{method:'POST',headers:{origin:mysalary,'content-type':'application/json'},body:JSON.stringify({signalKey:'t'.repeat(40)})}));
  let last;for(let i=0;i<31;i++)last=await call();
  assert.equal(last.status,429);assert.equal(last.headers.get('access-control-allow-origin'),mysalary);
  const none=await make(baseAuth,null);
- assert.equal((await none(request('/connector/signal',{method:'POST',headers:{origin:mysalary,'content-type':'application/json'},body:'{"idToken":"x"}'}))).status,503);
+ assert.equal((await none(request('/connector/signal',{method:'POST',headers:{origin:mysalary,'content-type':'application/json'},body:'{"signalKey":"x"}'}))).status,503);
 });

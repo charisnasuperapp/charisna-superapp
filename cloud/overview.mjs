@@ -525,6 +525,32 @@ export function mount({ document = globalThis.document, window = globalThis.wind
     finally { connecting = false; $('#connect-button').disabled = false; }
   });
 
+  const signalKeyField = $('#signal-key-value');
+  async function updateSignalKey(revoke) {
+    const createButton = $('#signal-key-create');
+    const revokeButton = $('#signal-key-revoke');
+    const status = $('#signal-key-status');
+    createButton.disabled = revokeButton.disabled = true;
+    signalKeyField.hidden = true;
+    signalKeyField.value = '';
+    try {
+      const response = await fetchImpl('/connector/signal-key', post({ revoke }));
+      if (!response.ok) throw Error('signal key');
+      const result = await response.json();
+      if (!revoke) {
+        signalKeyField.value = result.signalKey;
+        signalKeyField.hidden = false;
+        signalKeyField.select();
+      }
+      status.textContent = revoke
+        ? 'Kunci sinkron dicabut.'
+        : 'Salin kunci ini ke Settings MySalary. Kunci sebelumnya sudah dicabut.';
+    } catch { status.textContent = 'Kunci belum berubah. Coba beberapa saat lagi.'; }
+    finally { createButton.disabled = revokeButton.disabled = false; }
+  }
+  $('#signal-key-create')?.addEventListener('click', () => updateSignalKey(false));
+  $('#signal-key-revoke')?.addEventListener('click', () => updateSignalKey(true));
+
   $('#disconnect-button').addEventListener('click', async () => {
     $('#disconnect-button').disabled = true;
     try {

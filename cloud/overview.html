@@ -158,6 +158,12 @@
     </div>
 
     <p class="scope-note" id="source-note">Sumber: MySalary Firebase. Kelas dan catatan harian tidak disalin ke SuperApp. Sinkron terjadwal setiap 6 jam dan saat ringkasan dibuka setelah 1 jam.</p>
+    <div class="connector-actions">
+      <button id="signal-key-create" class="button secondary" type="button">Buat kunci sinkron MySalary</button>
+      <button id="signal-key-revoke" class="button secondary" type="button">Cabut kunci sinkron</button>
+      <p id="signal-key-status" role="status"></p>
+      <input id="signal-key-value" aria-label="Kunci sinkron MySalary" readonly hidden>
+    </div>
     <button id="disconnect-button" class="button secondary" type="button">Putuskan koneksi MySalary</button>
   </section>
   <footer>

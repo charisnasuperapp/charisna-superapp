@@ -45,4 +45,10 @@ Sumber: [repo MySalary](https://github.com/cocoyiyi88/teaching-pay-audit), [Fire
 
 ## Pemicu cepat (sinyal)
 
-Setelah commit Firestore MySalary sukses, sumber mengirim `POST /connector/signal` dengan `{idToken}` (tanpa data gaji). Worker memvalidasi token ke Firebase, mencocokkan UID dengan akun terhubung, lalu menarik ulang Firestore sendiri. Sinyal gagal tidak menggagalkan simpan; Cron tetap cadangan. Pengiriman saat `pagehide` hanya best effort. Pemicu belum aktif sebelum patch `patches/mysalary-superapp-signal.patch` diterapkan ke MySalary; sampai itu, batas sinkron nyata ialah interval Cron (hingga sekitar 6 jam) plus cache 1 jam saat halaman dibuka.
+Pemilik membuat kunci sinkron di dashboard SuperApp dan menempelkannya di Settings
+MySalary. Kunci hanya memicu refresh untuk akun yang sudah terhubung. Worker
+menyimpan hash di state terenkripsi dan memakai koneksi Firebase yang sudah ada.
+Sinyal setelah commit membawa kunci sinkron saja. Cabut atau buat kunci baru dari
+dashboard untuk menonaktifkan kunci lama. Putuskan koneksi untuk menghapus kunci
+bersama koneksi. Cooldown berlaku 10 detik. MySalary mencoba ulang selama tab masih
+aktif, sementara Cron tetap menjadi cadangan.

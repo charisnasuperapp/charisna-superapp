@@ -151,44 +151,33 @@ test('token rotation is not persisted when the state changed underneath the sync
   assert.equal(s.stored,null);
 });
 
-test('signal pulls fresh data only for the connected Firebase UID and carries no salary data', async () => {
-  const s=setup();
-  await s.connector.connect({idToken,refreshToken});
+test('scoped signal only reads the paired account and survives scheduled refresh', async () => {
+  const s = setup();
+  await s.connector.connect({idToken, refreshToken});
+  const issued = await s.connector.setSignalKey(false);
+  assert.equal(issued.status, 200);
+  const key = issued.body.signalKey;
+  assert.match(key, /^ms1_[A-Za-z0-9_-]{43}$/);
   s.advance(60000);
-  const before=s.stored;
-  const ok=await s.connector.signal(idToken);
-  assert.equal(ok.status,200);
-  assert.deepEqual(Object.keys(ok.body),['accepted']);
-  assert.notEqual(s.stored,before);
-  assert.equal((await s.connector.overview()).body.synced_at,new Date(Date.parse('2026-11-07T00:01:00Z')).toISOString());
+  await s.connector.scheduledSync();
+  s.advance(60000);
+  const before = s.requests.length;
+  const result = await s.connector.signal(key);
+  assert.deepEqual(result, {status: 200, body: {accepted: true}});
+  assert.ok(s.requests.slice(before).every(r => !r.url.includes('accounts:lookup')));
+  assert.equal((await s.connector.signal(key)).status, 429);
+
+  const replacement = await s.connector.setSignalKey(false);
+  assert.equal((await s.connector.signal(key)).status, 403);
+  assert.equal((await s.connector.setSignalKey(true)).status, 200);
+  assert.equal((await s.connector.signal(replacement.body.signalKey)).status, 403);
+  assert.equal((await s.connector.signal(idToken)).status, 400);
 });
 
-test('signal rejects bad tokens, other UIDs and unconnected state without writing', async () => {
-  const s=setup();
-  assert.equal((await s.connector.signal(idToken)).status,403);
-  await s.connector.connect({idToken,refreshToken});
-  const stored=s.stored;
-  assert.equal((await s.connector.signal('bad')).status,400);
-  s.setOffline(true);
-  assert.equal((await s.connector.signal(idToken)).status,401);
-  assert.equal(s.stored,stored);
-});
-
-test('signal for another UID is refused and repeated signals are coalesced', async () => {
-  const s=setup();
-  await s.connector.connect({idToken,refreshToken});
-  s.advance(60000);
-  assert.equal((await s.connector.signal(idToken)).status,200);
-  const writes=s.requests.length;
-  s.advance(1000);
-  const again=await s.connector.signal(idToken);
-  assert.equal(again.status,202);
-  assert.equal(s.requests.filter(r=>r.url.includes('securetoken')).length,1);
-  assert.ok(s.requests.length>writes-1);
-  const other=setup();
-  await other.connector.connect({idToken,refreshToken});
-  other.setUid('another-user-999');
-  assert.equal((await other.connector.signal(idToken)).status,403);
+test('daily rounding matches the MySalary detailed report', () => {
+  const monthKey = '2026-11';
+  const month = { monthKey, hourlyRate: 15.50, entries: { 1: { hours: 0.25 }, 2: { hours: 0.25 } } };
+  assert.equal(summarizeTeachingMonth(month, monthKey).pay_minor, '776');
 });
 
 test('rotated secret treats only unreadable ciphertext as reconnect and clears that row', async () => {

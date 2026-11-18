@@ -1,9 +1,10 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 const CACHE_MS = 60 * 60 * 1000;
 const SIGNAL_COOLDOWN_MS = 10 * 1000;
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 const TOKEN = /^[A-Za-z0-9._~-]{20,4096}$/;
+const SIGNAL_KEY = /^ms1_[A-Za-z0-9_-]{43}$/;
 const UID = /^[A-Za-z0-9_-]{6,128}$/;
 const UNAVAILABLE = { state: 'source_error', message: 'Sumber sementara tidak tersedia.' };
 const RECONNECT = { state: 'needs_reconnect', source: 'MySalary / Teaching Pay Audit' };
@@ -31,15 +32,17 @@ export function summarizeTeachingMonth(month, key) {
       || !month.entries || typeof month.entries !== 'object') throw Error('bad month');
   let hours = 0;
   let days = 0;
+  let cents = 0;
   for (const [day, entry] of Object.entries(month.entries)) {
     if (!/^(?:[1-9]|[12][0-9]|3[01])$/.test(day) || !entry || !Number.isFinite(entry.hours)
         || entry.hours < 0 || entry.hours > 24) throw Error('bad entry');
-    const normalized = Math.round(entry.hours * 100) / 100;
-    hours += normalized;
-    if (normalized > 0) days++;
+    const hundredths = Math.round(entry.hours * 100);
+    hours += hundredths / 100;
+    if (hundredths > 0) days++;
+    const dailyCents = hundredths * month.hourlyRate;
+    cents += Math.round(dailyCents + Number.EPSILON * dailyCents);
   }
   hours = Math.round(hours * 100) / 100;
-  const cents = Math.round(hours * month.hourlyRate * 100);
   if (!Number.isSafeInteger(cents) || cents < 0) throw Error('unsafe pay');
   return { month: key, hours, teaching_days: days, pay_minor: String(cents), currency: 'USD', scale: 2 };
 }
@@ -154,30 +157,45 @@ export function createTeachingConnector({ env, fetchImpl = fetch, now = () => Da
         source_updated_at: typeof manifest?.updatedAt === 'string' ? manifest.updatedAt : null,
         synced_at: new Date(now()).toISOString() };
       const rotated = TOKEN.test(token.refresh_token) ? token.refresh_token : data.refreshToken;
-      if (!await swap(version, { uid: data.uid, refreshToken: rotated, snapshot, syncedAt: now() })) return { status: 409, body: UNAVAILABLE };
+      if (!await swap(version, { ...data, refreshToken: rotated, snapshot, syncedAt: now() })) return { status: 409, body: UNAVAILABLE };
       return { status: 200, body: snapshot };
     } catch { return { status: 503, body: UNAVAILABLE }; }
   }
-  // Fast trigger from MySalary after a successful cloud save. The caller proves identity with a Firebase ID token only;
-  // no salary data is accepted. The Worker re-reads Firestore itself, so a forged signal can at most cause one extra pull.
-  async function signal(idToken) {
+  async function setSignalKey(revoke) {
     if (!configured) return { status: 503, body: UNAVAILABLE };
-    if (!TOKEN.test(idToken)) return { status: 400, body: { error: 'Sinyal tidak valid.' } };
+    try {
+      const state = await read();
+      if (!state) return { status: 409, body: { error: 'Hubungkan MySalary terlebih dahulu.' } };
+      const signalKey = revoke ? '' : 'ms1_' + randomBytes(32).toString('base64url');
+      const data = { ...state.data };
+      if (revoke) delete data.signalKeyHash;
+      else data.signalKeyHash = createHash('sha256').update(signalKey).digest('hex');
+      if (!await swap(state.version, data)) return { status: 409, body: { error: 'Koneksi berubah. Coba lagi.' } };
+      return { status: 200, body: revoke ? { revoked: true } : { signalKey } };
+    } catch { return { status: 503, body: UNAVAILABLE }; }
+  }
+
+  async function signal(signalKey) {
+    if (!configured) return { status: 503, body: UNAVAILABLE };
+    if (typeof signalKey !== 'string' || !SIGNAL_KEY.test(signalKey)) {
+      return { status: 400, body: { error: 'Sinyal tidak valid.' } };
+    }
     let state;
     try { state = await read(); } catch { return { status: 503, body: UNAVAILABLE }; }
-    // Not connected: refuse before any provider call, so the endpoint cannot be used to probe tokens.
-    if (!state) return { status: 403, body: { error: 'Akun tidak cocok.' } };
-    try {
-      const url = `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(env.TEACHING_FIREBASE_API_KEY)}`;
-      const response = await request(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken }) });
-      if (!response.ok) return { status: 401, body: { error: 'Token tidak valid.' } };
-      const users = (await readJson(response, 20000)).users;
-      if (!Array.isArray(users) || users.length !== 1 || users[0].disabled || users[0].localId !== state.data.uid) return { status: 403, body: { error: 'Akun tidak cocok.' } };
-      // Persisted cooldown (syncedAt lives in D1) coalesces bursts across isolates.
-      if (Number.isSafeInteger(state.data.syncedAt) && now() - state.data.syncedAt < SIGNAL_COOLDOWN_MS) return { status: 202, body: { accepted: true } };
-      const result = await sync(state);
-      return result.status === 200 || result.status === 409 ? { status: 200, body: { accepted: true } } : { status: 503, body: UNAVAILABLE };
-    } catch { return { status: 503, body: UNAVAILABLE }; }
+    const stored = state?.data.signalKeyHash;
+    const digest = createHash('sha256').update(signalKey).digest();
+    if (typeof stored !== 'string' || !/^[a-f0-9]{64}$/.test(stored)
+      || !timingSafeEqual(Buffer.from(stored, 'hex'), digest)) {
+      return { status: 403, body: { error: 'Kunci sinkron tidak valid.' } };
+    }
+    if (Number.isSafeInteger(state.data.syncedAt) && now() - state.data.syncedAt < SIGNAL_COOLDOWN_MS) {
+      return { status: 429, body: { retry: true } };
+    }
+    const result = await sync(state);
+    if (result.status === 409) return { status: 429, body: { retry: true } };
+    return result.status === 200
+      ? { status: 200, body: { accepted: true } }
+      : { status: 503, body: UNAVAILABLE };
   }
   async function overview() {
     if (!configured) return { status: 503, body: UNAVAILABLE };
@@ -219,5 +237,5 @@ export function createTeachingConnector({ env, fetchImpl = fetch, now = () => Da
     catch { return { status: 503, body: UNAVAILABLE }; }
   }
   return { configured, config: () => configured ? { apiKey: env.TEACHING_FIREBASE_API_KEY, projectId: env.TEACHING_FIREBASE_PROJECT_ID } : null,
-    connect, overview, disconnect, scheduledSync, signal };
+    connect, overview, disconnect, scheduledSync, signal, setSignalKey };
 }

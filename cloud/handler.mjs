@@ -26,7 +26,7 @@ assets.set('/login',['./login.html','text/html; charset=utf-8']);
 assets.set('/login.mjs',['./login.mjs','text/javascript; charset=utf-8']);
 const publicPaths=new Set(['/login','/login.mjs','/styles.css']);
 const authPaths=new Set(['/auth/send-link','/auth/logout','/auth/login','/auth/password']);
-const connectorPaths=new Set(['/connector/connect','/connector/disconnect']);
+const connectorPaths=new Set(['/connector/connect','/connector/disconnect','/connector/signal-key']);
 const SIGNAL_PATH='/connector/signal';
 const DEFAULT_SIGNAL_ORIGIN='https://www.mysalary.my.id';
 const connectorCsp=headers['Content-Security-Policy'].replace("connect-src 'self'", "connect-src 'self' https://identitytoolkit.googleapis.com");
@@ -128,18 +128,18 @@ export function createCloudHandler({env=process.env,auth,teaching,money,pos,kost
     }
     if(path===SIGNAL_PATH){
      const origin=req.headers.get('origin');
-     if(origin!==signalOrigin)return respond(403,{error:'Asal permintaan ditolak.'});
+     if(origin!==signalOrigin&&origin!=='https://teaching-pay-audit.vercel.app')return respond(403,{error:'Asal permintaan ditolak.'});
      if(req.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,...cors(origin),'Access-Control-Allow-Methods':'POST','Access-Control-Allow-Headers':'Content-Type','Access-Control-Max-Age':'600'}});
      if(req.method!=='POST')return respond(405,{error:'Metode tidak diizinkan.'},{Allow:'POST, OPTIONS',...cors(origin)});
      if(!teaching?.configured)return respond(503,{error:'Konektor belum dikonfigurasi.'},cors(origin));
      // Isolate-local burst limit; the persisted cooldown in D1 is the cross-isolate guard.
      if(now()>=signalWindow){signalWindow=now()+60000;signalCount=0;}
      if(++signalCount>30)return respond(429,{error:'Terlalu banyak sinyal.'},{'Retry-After':'60',...cors(origin)});
-     const parsed=await readJson(req,6144);
+     const parsed=await readJson(req,256);
      if(parsed.error)return respond(parsed.error,{error:'Permintaan tidak valid.'},cors(origin));
-     if(Object.keys(parsed.value).join(',')!=='idToken')return respond(400,{error:'Permintaan tidak valid.'},cors(origin));
-     const result=await teaching.signal(parsed.value.idToken);
-     return respond(result.status,result.body,cors(origin));
+     if(Object.keys(parsed.value).join(',')!=='signalKey')return respond(400,{error:'Permintaan tidak valid.'},cors(origin));
+     const result=await teaching.signal(parsed.value.signalKey);
+     return respond(result.status,result.body,{...cors(origin),...(result.status===429?{'Retry-After':'10'}:{})});
     }
     if(path==='/money/push'){
      const origin=req.headers.get('origin');
@@ -214,6 +214,10 @@ export function createCloudHandler({env=process.env,auth,teaching,money,pos,kost
      if(!teaching?.configured)return respond(503,{error:'Konektor belum dikonfigurasi.'});
      const parsed=await readJson(req,path==='/connector/connect'?8192:2048);
      if(parsed.error)return respond(parsed.error,{error:'Permintaan tidak valid.'});
+     if(path==='/connector/signal-key'){
+      if(Object.keys(parsed.value).join(',')!=='revoke'||typeof parsed.value.revoke!=='boolean')return respond(400,{error:'Permintaan tidak valid.'});
+      const result=await teaching.setSignalKey(parsed.value.revoke);return respond(result.status,result.body);
+     }
      if(path==='/connector/disconnect'){
       if(Object.keys(parsed.value).length)return respond(400,{error:'Permintaan tidak valid.'});
       const result=await teaching.disconnect();return respond(result.status,result.body);
