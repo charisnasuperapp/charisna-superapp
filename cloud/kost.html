@@ -40,7 +40,7 @@
   </div>
   <div class="demo-note">
     <span class="note-icon" aria-hidden="true">i</span>
-    <p id="demo-note-text">Ringkasan berasal dari data lokal perangkat Owner yang terhubung. Cloud KOST masih ditransfer manual. Tanggal snapshot terlihat di bawah.</p>
+    <p id="demo-note-text">Terhubung langsung dengan CHARISNA KOST. Ringkasan diperbarui otomatis di latar belakang setiap kali data disimpan.</p>
   </div>
   <p id="kost-status" role="status" class="field-hint" style="margin-bottom:14px">Memuat ringkasan…</p>
   <div id="kost-skeleton" class="skeleton-panel businesses" aria-hidden="true">
@@ -59,9 +59,14 @@
     <p class="scope-note" id="kost-connect-note">Kode berlaku 10 menit. Data bawaan boleh dikirim dengan label contoh. Identitas penghuni, foto, dan detail tagihan tidak dikirim.</p>
   </section>
   <section id="kost-summary" class="businesses" hidden aria-labelledby="kost-summary-title">
-    <div class="section-heading">
-      <h2 id="kost-summary-title">Properti</h2>
-      <span id="kost-quality" class="badge"></span>
+    <div class="section-heading" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <h2 id="kost-summary-title" style="margin:0">Properti</h2>
+        <span id="kost-quality" class="badge"></span>
+      </div>
+      <button id="kost-refresh" class="button secondary" type="button" style="padding:6px 14px;font-size:12px;display:inline-flex;align-items:center;gap:6px" title="Segarkan data">
+        <span aria-hidden="true">↻</span> <span id="kost-refresh-text">Segarkan</span>
+      </button>
     </div>
     <p id="kost-demo-note" class="scope-note" hidden>Data contoh bawaan KOST. Angka ini belum mewakili usaha nyata. Label hilang setelah semua data contoh diganti.</p>
     <p id="kost-month" class="scope-note"></p>

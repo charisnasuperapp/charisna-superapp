@@ -21,8 +21,9 @@ const i18n = {
   privacy: 'Privasi',
   eyebrow: 'BERANDA PEMILIK',
   subtitle: 'Okupansi dan tagihan per properti.',
-  demoNote: 'Ringkasan berasal dari data lokal perangkat Owner yang terhubung. Cloud KOST masih ditransfer manual. Tanggal snapshot terlihat di bawah.',
+  demoNote: 'Terhubung langsung dengan CHARISNA KOST. Ringkasan diperbarui otomatis di latar belakang setiap kali data disimpan.',
   loading: 'Memuat ringkasan…',
+  refreshBtn: 'Segarkan',
   connectEyebrow: 'SAMBUNGKAN SUMBER',
   connectTitle: 'Hubungkan CHARISNA KOST',
   connectDesc: 'Buat kode di sini. Buka aplikasi KOST sebagai Owner, lalu masukkan kode pada Cloud & Akun → CHARISNA SuperApp.',
@@ -31,8 +32,8 @@ const i18n = {
   summaryTitle: 'Properti',
   badgeDemoStale: 'Data contoh · tertunda',
   badgeDemo: 'Data contoh',
-  badgeStale: 'Data tertunda',
-  badgeLocal: 'Snapshot lokal',
+  badgeStale: 'Tertunda (>24 jam)',
+  badgeLocal: 'Live terhubung',
   demoWarning: 'Data contoh bawaan KOST. Angka ini belum mewakili usaha nyata. Label hilang setelah semua data contoh diganti.',
   monthPrefix: 'Bulan pembayaran:',
   receivedPrefix: 'Diterima',
@@ -53,8 +54,9 @@ const i18n = {
   privacy: 'Privacy',
   eyebrow: 'OWNER DASHBOARD',
   subtitle: 'Occupancy and billing per property.',
-  demoNote: 'Summary is derived from connected Owner device local data. KOST cloud is currently transferred manually. Snapshot date is shown below.',
+  demoNote: 'Directly connected with CHARISNA KOST. Summaries are automatically updated in the background whenever data is saved.',
   loading: 'Loading summary…',
+  refreshBtn: 'Refresh',
   connectEyebrow: 'CONNECT SOURCE',
   connectTitle: 'Connect CHARISNA KOST',
   connectDesc: 'Generate a code here. Open KOST app as Owner, then enter code under Cloud & Account → CHARISNA SuperApp.',
@@ -63,8 +65,8 @@ const i18n = {
   summaryTitle: 'Properties',
   badgeDemoStale: 'Sample data · delayed',
   badgeDemo: 'Sample data',
-  badgeStale: 'Delayed data',
-  badgeLocal: 'Local snapshot',
+  badgeStale: 'Delayed (>24 hrs)',
+  badgeLocal: 'Live connected',
   demoWarning: 'Built-in sample KOST data. These figures do not represent real business yet. Label disappears once sample data is replaced.',
   monthPrefix: 'Billing month:',
   receivedPrefix: 'Received',
@@ -112,6 +114,7 @@ function applyLang(lang){
  if($('kost-summary-title')) $('kost-summary-title').textContent = t.summaryTitle;
  if($('kost-demo-note')) $('kost-demo-note').textContent = t.demoWarning;
  if($('kost-footer-note')) $('kost-footer-note').textContent = t.kostFooterNote;
+ if($('kost-refresh-text')) $('kost-refresh-text').textContent = t.refreshBtn;
  if($('kost-disconnect')) $('kost-disconnect').textContent = t.disconnectBtn;
  if($('footer-note')) $('footer-note').textContent = t.footerNote;
 
@@ -197,6 +200,21 @@ $('kost-disconnect').addEventListener('click', async () => {
   $('kost-time').textContent = t.errorDisconnect;
  }finally{ $('kost-disconnect').disabled = false; }
 });
+
+if($('kost-refresh')){
+ $('kost-refresh').addEventListener('click', async () => {
+  const btn = $('kost-refresh');
+  btn.disabled = true;
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = `<span class="spinner" style="display:inline-block;animation:spin 1s linear infinite" aria-hidden="true">↻</span> <span>${(i18n[currentLang] || i18n.id).loading}</span>`;
+  try {
+   await load();
+  } finally {
+   btn.innerHTML = originalHtml;
+   btn.disabled = false;
+  }
+ });
+}
 
 if($('privacy-btn')){
  $('privacy-btn').addEventListener('click', () => applyPrivacy(!isPrivacyActive));
