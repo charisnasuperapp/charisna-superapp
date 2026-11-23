@@ -5,6 +5,16 @@ const CODE=/^[A-Z2-9]{24}$/, KEY=/^[A-Za-z0-9_-]{43}$/;
 const MONTH=/^\d{4}-(0[1-9]|1[0-2])$/, AMOUNT=/^-?\d{1,18}$/;
 const STALE=24*60*60*1000, PAIR_TTL=10*60*1000;
 const result=(status,body)=>({status,body});
+const DEMO_NAMES=new Set(['CHARISNA KOST Pusat','CHARISNA KOST Suites','Kost Utama','Kost Kedua']);
+
+export function isDemoKostSnapshot(input){
+  if(input?.is_demo===false)return false;
+  if(Array.isArray(input?.properties)&&input.properties.length>0){
+    const allCustom=input.properties.every(p=>typeof p?.name==='string'&&p.name.trim()&&!DEMO_NAMES.has(p.name.trim()));
+    if(allCustom)return false;
+  }
+  return input?.is_demo===true;
+}
 
 export function validateKostSnapshot(input){
   if(!input||input.schema!==1||!MONTH.test(input.month)||input.source!=='local_snapshot'||!Array.isArray(input.properties)||input.properties.length>100||!Number.isSafeInteger(input.unassigned_bills)||input.unassigned_bills<0||input.is_demo!==undefined&&typeof input.is_demo!=='boolean')throw Error('snapshot');
@@ -16,7 +26,7 @@ export function validateKostSnapshot(input){
     for(const key of ['paid_this_month_idr','unpaid_bills_idr'])if(typeof property[key]!=='string'||!AMOUNT.test(property[key])||!Number.isSafeInteger(Number(property[key]))||Number(property[key])<0)throw Error('amount');
     return {id:property.id,name:property.name.trim(),occupied_rooms:property.occupied_rooms,total_rooms:property.total_rooms,paid_this_month_idr:property.paid_this_month_idr,unpaid_bills_idr:property.unpaid_bills_idr};
   });
-  return {schema:1,month:input.month,source:'local_snapshot',is_demo:input.is_demo===true,properties,unassigned_bills:input.unassigned_bills};
+  return {schema:1,month:input.month,source:'local_snapshot',is_demo:isDemoKostSnapshot({is_demo:input.is_demo,properties}),properties,unassigned_bills:input.unassigned_bills};
 }
 
 export function createKostConnector({env,now=()=>Date.now()}={}){
@@ -44,7 +54,8 @@ export function createKostConnector({env,now=()=>Date.now()}={}){
       await db.prepare('DELETE FROM connector_state WHERE id = ? AND payload = ?').bind(ID,raw).run();
       return result(200,{state:'needs_reconnect'});
     }
-    return result(200,{state:now()-data.receivedAt>STALE?'stale':'connected',snapshot:data.snapshot,received_at:new Date(data.receivedAt).toISOString()});
+    const snapshot=data.snapshot?{...data.snapshot,is_demo:isDemoKostSnapshot(data.snapshot)}:null;
+    return result(200,{state:now()-data.receivedAt>STALE?'stale':'connected',snapshot,received_at:new Date(data.receivedAt).toISOString()});
   }
   async function disconnect(){
     if(!configured)return result(503,{error:'Konektor belum tersedia.'});
